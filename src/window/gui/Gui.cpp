@@ -107,7 +107,7 @@ void Gui::Init(GuiWindowInitData windowImpl) {
 #if defined(__ANDROID__)
     // Scale everything by 2 for Android
     ImGui::GetStyle().ScaleAllSizes(2.0f);
-    mImGuiIo->FontGlobalScale = 2.0f;
+    //mImGuiIo->FontGlobalScale = 2.0f;
 #endif
 
 #ifdef __WIIU__
