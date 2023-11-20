@@ -492,6 +492,11 @@ static void gfx_sdl_handle_events(void) {
         event_impl.Sdl = { &event };
         LUS::Context::GetInstance()->GetWindow()->GetGui()->Update(event_impl);
         switch (event.type) {
+#ifdef __ANDROID__
+            case SDL_CONTROLLERDEVICEADDED:
+                LUS::Context::GetInstance()->GetControlDeck()->ScanDevices();
+                break;
+#endif
 #ifndef TARGET_WEB
             // Scancodes are broken in Emscripten SDL2: https://bugzilla.libsdl.org/show_bug.cgi?id=3259
             case SDL_KEYDOWN:

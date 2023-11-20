@@ -620,6 +620,11 @@ static void ImGui_ImplSDL2_UpdateGamepads()
     // Get gamepad
     io.BackendFlags &= ~ImGuiBackendFlags_HasGamepad;
     SDL_GameController* game_controller = SDL_GameControllerOpen(0);
+#ifdef __ANDROID__
+    // Reconnected controllers default to ID 1
+    if (!game_controller)
+        game_controller = SDL_GameControllerOpen(1);
+#endif
     if (!game_controller)
         return;
     io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
