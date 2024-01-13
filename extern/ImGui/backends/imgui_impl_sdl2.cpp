@@ -253,6 +253,9 @@ static ImGuiKey ImGui_ImplSDL2_KeycodeToImGuiKey(int keycode)
         case SDLK_F10: return ImGuiKey_F10;
         case SDLK_F11: return ImGuiKey_F11;
         case SDLK_F12: return ImGuiKey_F12;
+#ifdef __ANDROID__
+        case SDLK_AC_BACK: return ImGuiKey_F1;
+#endif
     }
     return ImGuiKey_None;
 }
@@ -452,6 +455,11 @@ static bool ImGui_ImplSDL2_Init(SDL_Window* window, SDL_Renderer* renderer, void
     // From 2.0.22: Disable auto-capture, this is preventing drag and drop across multiple windows (see #5710)
 #ifdef SDL_HINT_MOUSE_AUTO_CAPTURE
     SDL_SetHint(SDL_HINT_MOUSE_AUTO_CAPTURE, "0");
+#endif
+
+    // Capture Android Back button input
+#ifdef __ANDROID__
+    SDL_SetHintWithPriority("SDL_ANDROID_TRAP_BACK_BUTTON", "1", SDL_HINT_OVERRIDE);
 #endif
 
     // Update monitors
