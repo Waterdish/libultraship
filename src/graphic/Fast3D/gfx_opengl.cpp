@@ -346,6 +346,9 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
         vs_len += sprintf(vs_buf + vs_len, "vInput%d = aInput%d;\n", i + 1, i + 1);
     }
     append_line(vs_buf, &vs_len, "gl_Position = aVtxPos;");
+#if defined(USE_OPENGLES) // emulates GL_DEPTH_CLAMP
+    append_line(vs_buf, &vs_len, "gl_Position.z = clamp(gl_Position.z, -gl_Position.w, gl_Position.w);");
+#endif
     append_line(vs_buf, &vs_len, "}");
 
     // Fragment shader
@@ -859,9 +862,10 @@ static void gfx_opengl_init(void) {
     glBindVertexArray(opengl_vao);
 #endif
 
-#ifndef USE_OPENGLES // not supported on gles
+#ifndef USE_OPENGLES // not supported on gles. Emulated in vertex shader
     glEnable(GL_DEPTH_CLAMP);
 #endif
+
     glDepthFunc(GL_LEQUAL);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
