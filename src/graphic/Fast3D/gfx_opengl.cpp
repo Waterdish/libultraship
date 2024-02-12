@@ -346,8 +346,8 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
         vs_len += sprintf(vs_buf + vs_len, "vInput%d = aInput%d;\n", i + 1, i + 1);
     }
     append_line(vs_buf, &vs_len, "gl_Position = aVtxPos;");
-#if defined(USE_OPENGLES) // emulates GL_DEPTH_CLAMP
-    append_line(vs_buf, &vs_len, "gl_Position.z = clamp(gl_Position.z, -gl_Position.w, gl_Position.w);");
+#if defined(USE_OPENGLES) // workaround for no GL_DEPTH_CLAMP
+    append_line(vs_buf, &vs_len, "gl_Position.z *= 0.01f;");
 #endif
     append_line(vs_buf, &vs_len, "}");
 
@@ -862,7 +862,7 @@ static void gfx_opengl_init(void) {
     glBindVertexArray(opengl_vao);
 #endif
 
-#ifndef USE_OPENGLES // not supported on gles. Emulated in vertex shader
+#ifndef USE_OPENGLES // not supported on gles. Workaround used in vertex shader
     glEnable(GL_DEPTH_CLAMP);
 #endif
 
