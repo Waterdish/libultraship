@@ -2,6 +2,11 @@
 #include "Controller.h"
 #include <SDL2/SDL.h>
 
+#ifdef __ANDROID__
+#include <SDL2/SDL_sensor.h>
+#include "../port/android/AndroidImpl.h"
+#endif
+
 namespace LUS {
 class SDLController : public Controller {
   public:
@@ -26,6 +31,9 @@ class SDLController : public Controller {
 
   private:
     SDL_GameController* mController;
+#ifdef __ANDROID__
+    SDL_Sensor *gyroSensor;
+#endif
     bool mSupportsGyro;
     float NormaliseStickValue(float axisValue);
     void NormalizeStickAxis(SDL_GameControllerAxis axisX, SDL_GameControllerAxis axisY, int32_t portIndex);

@@ -24,4 +24,29 @@ void LUS::Android::ImGuiProcessEvent(bool wantsTextInput) {
         }
     }
 }
+
+void LUS::Android::adjustGyro(float gyroData[3]){
+    float gyroX = gyroData[0];
+    float gyroY = gyroData[1];
+    switch(SDL_GetDisplayOrientation(0)){
+        case(SDL_ORIENTATION_PORTRAIT):
+            // nothing to do
+            break;
+        case(SDL_ORIENTATION_PORTRAIT_FLIPPED):
+            gyroData[0] = -gyroX;
+            gyroData[1] = -gyroY;
+            break;
+        case(SDL_ORIENTATION_LANDSCAPE):
+            gyroData[0] = -gyroY;
+            gyroData[1] = gyroX;
+            break;
+        case(SDL_ORIENTATION_LANDSCAPE_FLIPPED):
+            gyroData[0] = gyroY;
+            gyroData[1] = -gyroX;
+            break;
+        case(SDL_ORIENTATION_UNKNOWN):
+            // nothing to do
+            break;
+    }
+}
 #endif

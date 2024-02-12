@@ -22,6 +22,11 @@ SDLController::SDLController(int32_t deviceIndex) : Controller(deviceIndex), mCo
 }
 
 bool SDLController::Open() {
+
+#ifdef __ANDROID__
+    SDL_Init(SDL_INIT_SENSOR);
+#endif
+
     const auto newCont = SDL_GameControllerOpen(mDeviceIndex);
 
     // We failed to load the controller. Go to next.
@@ -35,6 +40,18 @@ bool SDLController::Open() {
         SDL_GameControllerSetSensorEnabled(newCont, SDL_SENSOR_GYRO, SDL_TRUE);
         mSupportsGyro = true;
     }
+
+#ifdef __ANDROID__
+    if (!mSupportsGyro) { // uses device gyro only if controller is unavailable
+        for (int i = 0; i<SDL_NumSensors();i++) {
+            if (SDL_SensorGetDeviceType(i) == SDL_SENSOR_GYRO) {
+                gyroSensor = SDL_SensorOpen(i);
+                mSupportsGyro = true;
+                break;
+            }
+        }
+    }
+#endif
 
     char guidBuf[33];
     SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(mDeviceIndex), guidBuf, sizeof(guidBuf));
@@ -58,6 +75,12 @@ bool SDLController::Close() {
         SDL_GameControllerClose(mController);
     }
     mController = nullptr;
+
+#ifdef __ANDROID__
+    if(gyroSensor != nullptr){
+        SDL_SensorClose(gyroSensor);
+    }
+#endif
 
     return true;
 }
@@ -129,7 +152,18 @@ void SDLController::ReadDevice(int32_t portIndex) {
     if (mSupportsGyro && profile->UseGyro) {
 
         float gyroData[3];
+
+#ifdef __ANDROID__
+      if(gyroSensor == nullptr){
+          SDL_GameControllerGetSensorData(mController, SDL_SENSOR_GYRO, gyroData, 3);
+      }else{
+          SDL_SensorUpdate();
+          SDL_SensorGetData(gyroSensor, gyroData, 3);
+          LUS::Android::adjustGyro(gyroData);
+      }
+#else
         SDL_GameControllerGetSensorData(mController, SDL_SENSOR_GYRO, gyroData, 3);
+#endif
 
         float gyroDriftX = profile->GyroData[DRIFT_X] / 100.0f;
         float gyroDriftY = profile->GyroData[DRIFT_Y] / 100.0f;
