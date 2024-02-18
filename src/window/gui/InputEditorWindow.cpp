@@ -464,11 +464,17 @@ void InputEditorWindow::DrawElement() {
     ImVec2 maxSize = ImVec2(1200, 360);
 #endif
 
+#ifndef __ANDROID__
     ImGui::SetNextWindowSizeConstraints(minSize, maxSize);
+#endif
     // OTRTODO: Disable this stupid workaround ( ReadRawPress() only works when the window is on the main viewport )
     ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID);
     ImGui::Begin("Controller Configuration", &mIsVisible,
+#ifdef __ANDROID__
+                 ImGuiWindowFlags_HorizontalScrollbar);
+#else
                  ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
+#endif
 
     ImGui::BeginTabBar("##Controllers");
 
