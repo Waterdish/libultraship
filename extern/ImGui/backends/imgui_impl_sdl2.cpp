@@ -457,11 +457,6 @@ static bool ImGui_ImplSDL2_Init(SDL_Window* window, SDL_Renderer* renderer, void
     SDL_SetHint(SDL_HINT_MOUSE_AUTO_CAPTURE, "0");
 #endif
 
-    // Capture Android Back button input
-#ifdef __ANDROID__
-    SDL_SetHintWithPriority("SDL_ANDROID_TRAP_BACK_BUTTON", "1", SDL_HINT_OVERRIDE);
-#endif
-
     // Update monitors
     ImGui_ImplSDL2_UpdateMonitors();
 
