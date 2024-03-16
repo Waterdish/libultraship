@@ -22,8 +22,13 @@ void SDLGyroMapping::Recalibrate() {
     }
 
     float gyroData[3];
+    
+#ifdef __ANDROID__
+    GetAndroidGyroData(gyroData);
+#else
     SDL_GameControllerSetSensorEnabled(mController, SDL_SENSOR_GYRO, SDL_TRUE);
     SDL_GameControllerGetSensorData(mController, SDL_SENSOR_GYRO, gyroData, 3);
+#endif
 
     mNeutralPitch = gyroData[0];
     mNeutralYaw = gyroData[1];
@@ -38,8 +43,13 @@ void SDLGyroMapping::UpdatePad(float& x, float& y) {
     }
 
     float gyroData[3];
+    
+#ifdef __ANDROID__
+    GetAndroidGyroData(gyroData);
+#else
     SDL_GameControllerSetSensorEnabled(mController, SDL_SENSOR_GYRO, SDL_TRUE);
     SDL_GameControllerGetSensorData(mController, SDL_SENSOR_GYRO, gyroData, 3);
+#endif
 
     x = (gyroData[0] - mNeutralPitch) * mSensitivity;
     y = (gyroData[1] - mNeutralYaw) * mSensitivity;
@@ -75,6 +85,29 @@ void SDLGyroMapping::EraseFromConfig() {
 
     CVarSave();
 }
+
+#ifdef __ANDROID__
+void SDLGyroMapping::GetAndroidGyroData(float gyroData[3]){
+    if(SDL_GameControllerHasSensor(mController, SDL_SENSOR_GYRO)) { // get data from controller if supported
+        SDL_GameControllerSetSensorEnabled(mController, SDL_SENSOR_GYRO, SDL_TRUE);
+        SDL_GameControllerGetSensorData(mController, SDL_SENSOR_GYRO, gyroData, 3);
+        return;
+    }
+    
+    if(gyroSensor == nullptr){ // populate gyroSensor variable if it hasn't been created yet
+        for (int i = 0; i<SDL_NumSensors();i++) {
+            if (SDL_SensorGetDeviceType(i) == SDL_SENSOR_GYRO) {
+                gyroSensor = SDL_SensorOpen(i);
+                break;
+            }
+        }
+    }
+
+    SDL_SensorUpdate();
+    SDL_SensorGetData(gyroSensor, gyroData, 3);
+    LUS::Android::adjustGyro(gyroData);
+}
+#endif
 
 std::string SDLGyroMapping::GetPhysicalDeviceName() {
     return GetSDLDeviceName();

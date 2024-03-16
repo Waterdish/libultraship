@@ -31,6 +31,9 @@ class SDLMapping : public ControllerMapping {
     int32_t GetSDLDeviceIndex();
 
     SDL_GameController* mController;
+#ifdef __ANDROID__
+    SDL_Sensor* gyroSensor;
+#endif __ANDROID__
 
   private:
     bool OpenController();
