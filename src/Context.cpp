@@ -1,10 +1,14 @@
 #include "Context.h"
-#include "controller/KeyboardScancodes.h"
+#include "controller/controldevice/controller/mapping/keyboard/KeyboardScancodes.h"
 #include <iostream>
 #include <spdlog/async.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include "install_config.h"
+
+#ifdef _WIN32
+#include <tchar.h>
+#endif
 
 #ifdef __APPLE__
 #include "utils/OSXFolderManager.h"
@@ -190,9 +194,15 @@ void Context::InitResourceManager(const std::vector<std::string>& otrFiles,
     mMainPath = GetConfig()->GetString("Game.Main Archive", GetAppDirectoryPath());
     mPatchesPath = GetConfig()->GetString("Game.Patches Archive", GetAppDirectoryPath() + "/mods");
     if (otrFiles.empty()) {
-        mResourceManager = std::make_shared<ResourceManager>(mMainPath, mPatchesPath, validHashes, reservedThreadCount);
+        std::vector<std::string> paths = std::vector<std::string>();
+        paths.push_back(mMainPath);
+        paths.push_back(mPatchesPath);
+
+        mResourceManager = std::make_shared<ResourceManager>();
+        GetResourceManager()->Init(paths, validHashes, reservedThreadCount);
     } else {
-        mResourceManager = std::make_shared<ResourceManager>(otrFiles, validHashes, reservedThreadCount);
+        mResourceManager = std::make_shared<ResourceManager>();
+        GetResourceManager()->Init(otrFiles, validHashes, reservedThreadCount);
     }
 
     if (!GetResourceManager()->DidLoadSuccessfully()) {
@@ -212,12 +222,12 @@ void Context::InitResourceManager(const std::vector<std::string>& otrFiles,
 #endif
 }
 
-void Context::InitControlDeck() {
+void Context::InitControlDeck(std::vector<uint16_t> additionalBitmasks) {
     if (GetControlDeck() != nullptr) {
         return;
     }
 
-    mControlDeck = std::make_shared<ControlDeck>();
+    mControlDeck = std::make_shared<ControlDeck>(additionalBitmasks);
 }
 
 void Context::InitCrashHandler() {
@@ -246,12 +256,12 @@ void Context::InitConsole() {
     GetConsole()->Init();
 }
 
-void Context::InitWindow() {
+void Context::InitWindow(std::shared_ptr<GuiWindow> customInputEditorWindow) {
     if (GetWindow() != nullptr) {
         return;
     }
 
-    mWindow = std::make_shared<Window>();
+    mWindow = std::make_shared<Window>(customInputEditorWindow);
     GetWindow()->Init();
 }
 

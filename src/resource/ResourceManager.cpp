@@ -1,41 +1,28 @@
 #include "ResourceManager.h"
 #include <spdlog/spdlog.h>
-#include "File.h"
-#include "Archive.h"
+#include "resource/File.h"
+#include "resource/archive/Archive.h"
 #include <algorithm>
 #include <thread>
 #include <Utils/StringHelper.h>
 #include "public/bridge/consolevariablebridge.h"
 #include "Context.h"
 
+// TODO: Delete me and find an implementation
 // Comes from stormlib. May not be the most efficient, but it's also important to be consistent.
 // NOLINTNEXTLINE
 extern bool SFileCheckWildCard(const char* szString, const char* szWildCard);
 
 namespace LUS {
 
-ResourceManager::ResourceManager(const std::string& mainPath, const std::string& patchesPath,
-                                 const std::unordered_set<uint32_t>& validHashes, int32_t reservedThreadCount) {
-    mResourceLoader = std::make_shared<ResourceLoader>();
-    mArchive = std::make_shared<Archive>(mainPath, patchesPath, validHashes, false);
-#if defined(__SWITCH__) || defined(__WIIU__)
-    size_t threadCount = 1;
-#else
-    // the extra `- 1` is because we reserve an extra thread for spdlog
-    size_t threadCount = std::max(1, (int32_t)(std::thread::hardware_concurrency() - reservedThreadCount - 1));
-#endif
-    mThreadPool = std::make_shared<BS::thread_pool>(threadCount);
-
-    if (!DidLoadSuccessfully()) {
-        // Nothing ever unpauses the thread pool since nothing will ever try to load the archive again.
-        mThreadPool->pause();
-    }
+ResourceManager::ResourceManager() {
 }
 
-ResourceManager::ResourceManager(const std::vector<std::string>& otrFiles,
-                                 const std::unordered_set<uint32_t>& validHashes, int32_t reservedThreadCount) {
+void ResourceManager::Init(const std::vector<std::string>& otrFiles, const std::unordered_set<uint32_t>& validHashes,
+                           int32_t reservedThreadCount) {
     mResourceLoader = std::make_shared<ResourceLoader>();
-    mArchive = std::make_shared<Archive>(otrFiles, validHashes, false);
+    mArchiveManager = std::make_shared<ArchiveManager>();
+    GetArchiveManager()->Init(otrFiles, validHashes);
 #if defined(__SWITCH__) || defined(__WIIU__)
     size_t threadCount = 1;
 #else
@@ -55,31 +42,33 @@ ResourceManager::~ResourceManager() {
 }
 
 bool ResourceManager::DidLoadSuccessfully() {
-    return mArchive != nullptr && mArchive->IsMainMPQValid();
+    return mArchiveManager != nullptr && mArchiveManager->IsArchiveLoaded();
 }
 
-std::shared_ptr<File> ResourceManager::LoadFileProcess(const std::string& filePath) {
-    auto file = mArchive->LoadFile(filePath, true);
+std::shared_ptr<File> ResourceManager::LoadFileProcess(const std::string& filePath,
+                                                       std::shared_ptr<ResourceInitData> initData) {
+    auto file = mArchiveManager->LoadFile(filePath, initData);
     if (file != nullptr) {
-        SPDLOG_TRACE("Loaded File {} on ResourceManager", file->Path);
+        SPDLOG_TRACE("Loaded File {} on ResourceManager", file->InitData->Path);
     } else {
         SPDLOG_TRACE("Could not load File {} in ResourceManager", filePath);
     }
     return file;
 }
 
-std::shared_ptr<IResource> ResourceManager::LoadResourceProcess(const std::string& filePath, bool loadExact) {
+std::shared_ptr<IResource> ResourceManager::LoadResourceProcess(const std::string& filePath, bool loadExact,
+                                                                std::shared_ptr<ResourceInitData> initData) {
     // Check for and remove the OTR signature
     if (OtrSignatureCheck(filePath.c_str())) {
         const auto newFilePath = filePath.substr(7);
-        return LoadResourceProcess(newFilePath);
+        return LoadResourceProcess(newFilePath, false, initData);
     }
 
     // Attempt to load the alternate version of the asset, if we fail then we continue trying to load the standard
     // asset.
     if (!loadExact && CVarGetInteger("gAltAssets", 0) && !filePath.starts_with(IResource::gAltAssetPrefix)) {
         const auto altPath = IResource::gAltAssetPrefix + filePath;
-        auto altResource = LoadResourceProcess(altPath, loadExact);
+        auto altResource = LoadResourceProcess(altPath, loadExact, initData);
 
         if (altResource != nullptr) {
             return altResource;
@@ -112,7 +101,7 @@ std::shared_ptr<IResource> ResourceManager::LoadResourceProcess(const std::strin
     }
 
     // Get the file from the OTR
-    auto file = LoadFileProcess(filePath);
+    auto file = LoadFileProcess(filePath, initData);
     if (file == nullptr) {
         SPDLOG_TRACE("Failed to load resource file at path {}", filePath);
     }
@@ -149,20 +138,9 @@ std::shared_ptr<IResource> ResourceManager::LoadResourceProcess(const std::strin
     return resource;
 }
 
-std::shared_future<std::shared_ptr<File>> ResourceManager::LoadFileAsync(const std::string& filePath, bool priority) {
-    if (priority) {
-        return mThreadPool->submit_front(&ResourceManager::LoadFileProcess, this, filePath).share();
-    } else {
-        return mThreadPool->submit_back(&ResourceManager::LoadFileProcess, this, filePath).share();
-    }
-}
-
-std::shared_ptr<File> ResourceManager::LoadFile(const std::string& filePath) {
-    return LoadFileAsync(filePath, true).get();
-}
-
-std::shared_future<std::shared_ptr<IResource>> ResourceManager::LoadResourceAsync(const std::string& filePath,
-                                                                                  bool loadExact, bool priority) {
+std::shared_future<std::shared_ptr<IResource>>
+ResourceManager::LoadResourceAsync(const std::string& filePath, bool loadExact, bool priority,
+                                   std::shared_ptr<ResourceInitData> initData) {
     // Check for and remove the OTR signature
     if (OtrSignatureCheck(filePath.c_str())) {
         auto newFilePath = filePath.substr(7);
@@ -180,14 +158,15 @@ std::shared_future<std::shared_ptr<IResource>> ResourceManager::LoadResourceAsyn
     const auto newFilePath = std::string(filePath);
 
     if (priority) {
-        return mThreadPool->submit_front(&ResourceManager::LoadResourceProcess, this, newFilePath, loadExact);
+        return mThreadPool->submit_front(&ResourceManager::LoadResourceProcess, this, newFilePath, loadExact, initData);
     } else {
-        return mThreadPool->submit_back(&ResourceManager::LoadResourceProcess, this, newFilePath, loadExact);
+        return mThreadPool->submit_back(&ResourceManager::LoadResourceProcess, this, newFilePath, loadExact, initData);
     }
 }
 
-std::shared_ptr<IResource> ResourceManager::LoadResource(const std::string& filePath, bool loadExact) {
-    auto resource = LoadResourceAsync(filePath, loadExact, true).get();
+std::shared_ptr<IResource> ResourceManager::LoadResource(const std::string& filePath, bool loadExact,
+                                                         std::shared_ptr<ResourceInitData> initData) {
+    auto resource = LoadResourceAsync(filePath, loadExact, true, initData).get();
     if (resource == nullptr) {
         SPDLOG_ERROR("Failed to load resource file at path {}", filePath);
     }
@@ -249,7 +228,7 @@ ResourceManager::GetCachedResource(std::variant<ResourceLoadError, std::shared_p
 std::shared_ptr<std::vector<std::shared_future<std::shared_ptr<IResource>>>>
 ResourceManager::LoadDirectoryAsync(const std::string& searchMask, bool priority) {
     auto loadedList = std::make_shared<std::vector<std::shared_future<std::shared_ptr<IResource>>>>();
-    auto fileList = GetArchive()->ListFiles(searchMask);
+    auto fileList = GetArchiveManager()->ListFiles(searchMask);
     loadedList->reserve(fileList->size());
 
     for (size_t i = 0; i < fileList->size(); i++) {
@@ -274,21 +253,8 @@ std::shared_ptr<std::vector<std::shared_ptr<IResource>>> ResourceManager::LoadDi
     return loadedList;
 }
 
-std::shared_ptr<std::vector<std::string>> ResourceManager::FindLoadedFiles(const std::string& searchMask) {
-    const char* wildCard = searchMask.c_str();
-    auto list = std::make_shared<std::vector<std::string>>();
-
-    for (const auto& [key, value] : mResourceCache) {
-        if (SFileCheckWildCard(key.c_str(), wildCard)) {
-            list->push_back(key);
-        }
-    }
-
-    return list;
-}
-
 void ResourceManager::DirtyDirectory(const std::string& searchMask) {
-    auto list = FindLoadedFiles(searchMask);
+    auto list = GetArchiveManager()->ListFiles(searchMask);
 
     for (const auto& key : *list.get()) {
         auto resource = GetCachedResource(key);
@@ -302,15 +268,15 @@ void ResourceManager::DirtyDirectory(const std::string& searchMask) {
 }
 
 void ResourceManager::UnloadDirectory(const std::string& searchMask) {
-    auto list = FindLoadedFiles(searchMask);
+    auto list = GetArchiveManager()->ListFiles(searchMask);
 
     for (const auto& key : *list.get()) {
         UnloadResource(key);
     }
 }
 
-std::shared_ptr<Archive> ResourceManager::GetArchive() {
-    return mArchive;
+std::shared_ptr<ArchiveManager> ResourceManager::GetArchiveManager() {
+    return mArchiveManager;
 }
 
 std::shared_ptr<ResourceLoader> ResourceManager::GetResourceLoader() {

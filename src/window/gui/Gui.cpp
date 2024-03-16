@@ -15,6 +15,7 @@
 #include "resource/File.h"
 #include <stb/stb_image.h>
 #include "window/gui/Fonts.h"
+#include "window/gui/resource/GuiTextureFactory.h"
 
 #ifdef __WIIU__
 #include <gx2/registers.h> // GX2SetViewport / GX2SetScissor
@@ -66,13 +67,23 @@ namespace LUS {
 #define TOGGLE_BTN ImGuiKey_F1
 #define TOGGLE_PAD_BTN ImGuiKey_GamepadBack
 
-Gui::Gui() : mNeedsConsoleVariableSave(false) {
+Gui::Gui(std::shared_ptr<GuiWindow> customInputEditorWindow) : mNeedsConsoleVariableSave(false) {
     mGameOverlay = std::make_shared<GameOverlay>();
-    mInputViewer = std::make_shared<InputViewer>();
 
     AddGuiWindow(std::make_shared<StatsWindow>("gStatsEnabled", "Stats"));
-    AddGuiWindow(std::make_shared<InputEditorWindow>("gControllerConfigurationEnabled", "Input Editor"));
+    if (customInputEditorWindow == nullptr) {
+        AddGuiWindow(std::make_shared<InputEditorWindow>("gControllerConfigurationEnabled", "Input Editor"));
+    } else {
+        AddGuiWindow(customInputEditorWindow);
+    }
+    AddGuiWindow(std::make_shared<ControllerDisconnectedWindow>("gControllerDisconnectedWindowEnabled",
+                                                                "Controller Disconnected"));
+    AddGuiWindow(
+        std::make_shared<ControllerReorderingWindow>("gControllerReorderingWindowEnabled", "Controller Reordering"));
     AddGuiWindow(std::make_shared<ConsoleWindow>("gConsoleEnabled", "Console"));
+}
+
+Gui::Gui() : Gui(nullptr) {
 }
 
 Gui::~Gui() {
@@ -139,6 +150,10 @@ void Gui::Init(GuiWindowInitData windowImpl) {
     GetGuiWindow("Input Editor")->Init();
     GetGuiWindow("Console")->Init();
     GetGameOverlay()->Init();
+
+    Context::GetInstance()->GetResourceManager()->GetResourceLoader()->RegisterResourceFactory(
+        std::make_shared<ResourceFactoryBinaryGuiTextureV0>(), RESOURCE_FORMAT_BINARY, "GuiTexture",
+        static_cast<uint32_t>(RESOURCE_TYPE_GUI_TEXTURE), 0);
 
     ImGuiWMInit();
     ImGuiBackendInit();
@@ -219,29 +234,23 @@ void Gui::ImGuiBackendInit() {
     }
 }
 
-void Gui::LoadTexture(const std::string& name, const std::string& path) {
-    // TODO: Nothing ever unloads the texture from Fast3D here.
+void Gui::LoadTextureFromRawImage(const std::string& name, const std::string& path) {
+    auto initData = std::make_shared<ResourceInitData>();
+    initData->Format = RESOURCE_FORMAT_BINARY;
+    initData->Type = static_cast<uint32_t>(RESOURCE_TYPE_GUI_TEXTURE);
+    initData->ResourceVersion = 0;
+    auto guiTexture = std::static_pointer_cast<GuiTexture>(
+        Context::GetInstance()->GetResourceManager()->LoadResource(path, false, initData));
+
     GfxRenderingAPI* api = gfx_get_current_rendering_api();
-    const auto res = Context::GetInstance()->GetResourceManager()->LoadFile(path);
 
-    GuiTexture asset;
-    asset.RendererTextureId = api->new_texture();
-    asset.Width = 0;
-    asset.Height = 0;
-    uint8_t* imgData = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(res->Buffer.data()), res->Buffer.size(),
-                                             &asset.Width, &asset.Height, nullptr, 4);
-
-    if (imgData == nullptr) {
-        SPDLOG_ERROR("Error loading imgui texture {}", stbi_failure_reason());
-        return;
-    }
-
-    api->select_texture(0, asset.RendererTextureId);
+    // TODO: Nothing ever unloads the texture from Fast3D here.
+    guiTexture->Metadata.RendererTextureId = api->new_texture();
+    api->select_texture(0, guiTexture->Metadata.RendererTextureId);
     api->set_sampler_parameters(0, false, 0, 0);
-    api->upload_texture(imgData, asset.Width, asset.Height);
+    api->upload_texture(guiTexture->Data, guiTexture->Metadata.Width, guiTexture->Metadata.Height);
 
-    mGuiTextures[name] = asset;
-    stbi_image_free(imgData);
+    mGuiTextures[name] = guiTexture->Metadata;
 }
 
 bool Gui::SupportsViewports() {
@@ -295,6 +304,20 @@ void Gui::Update(WindowEvent event) {
     }
 }
 
+bool Gui::ImGuiGamepadNavigationEnabled() {
+    return mImGuiIo->ConfigFlags & ImGuiConfigFlags_NavEnableGamepad;
+}
+
+void Gui::BlockImGuiGamepadNavigation() {
+    mImGuiIo->ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
+}
+
+void Gui::UnblockImGuiGamepadNavigation() {
+    if (CVarGetInteger("gControlNav", 0) && GetMenuBar() && GetMenuBar()->IsVisible()) {
+        mImGuiIo->ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    }
+}
+
 void Gui::DrawMenu() {
     LUS::Context::GetInstance()->GetWindow()->GetGui()->GetGuiWindow("Console")->Update();
     ImGuiBackendNewFrame();
@@ -343,7 +366,6 @@ void Gui::DrawMenu() {
         if (wnd->IsFullscreen()) {
             Context::GetInstance()->GetWindow()->SetCursorVisibility(GetMenuBar() && GetMenuBar()->IsVisible());
         }
-        Context::GetInstance()->GetControlDeck()->SaveSettings();
         if (CVarGetInteger("gControlNav", 0) && GetMenuBar() && GetMenuBar()->IsVisible()) {
             mImGuiIo->ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
         } else {
@@ -428,7 +450,6 @@ void Gui::DrawMenu() {
     }
 
     GetGameOverlay()->Draw();
-    GetInputViewer()->Draw();
 }
 
 void Gui::ImGuiBackendNewFrame() {
@@ -588,15 +609,15 @@ void Gui::StartFrame() {
     ImVec2 pos = ImVec2(0, 0);
     if (CVarGetInteger("gLowResMode", 0) == 1) { // N64 Mode takes priority
         const float sw = size.y * 320.0f / 240.0f;
-        pos = ImVec2(size.x / 2 - sw / 2, 0);
+        pos = ImVec2(floor(size.x / 2 - sw / 2), 0);
         size = ImVec2(sw, size.y);
     } else if (CVarGetInteger("gAdvancedResolution.Enabled", 0)) {
         if (!CVarGetInteger("gAdvancedResolution.PixelPerfectMode", 0)) {
             if (!CVarGetInteger("gAdvancedResolution.IgnoreAspectCorrection", 0)) {
                 float sWdth = size.y * gfx_current_dimensions.width / gfx_current_dimensions.height;
                 float sHght = size.x * gfx_current_dimensions.height / gfx_current_dimensions.width;
-                float sPosX = size.x / 2 - sWdth / 2;
-                float sPosY = size.y / 2 - sHght / 2;
+                float sPosX = floor(size.x / 2.0f - sWdth / 2.0f);
+                float sPosY = floor(size.y / 2.0f - sHght / 2.0f);
                 if (sPosY < 0.0f) { // pillarbox
                     sPosY = 0.0f;   // clamp y position
                     sHght = size.y; // reset height
@@ -610,8 +631,8 @@ void Gui::StartFrame() {
             }
         } else { // in pixel perfect mode it's much easier
             const int factor = GetIntegerScaleFactor();
-            float sPosX = size.x / 2 - (gfx_current_dimensions.width * factor) / 2;
-            float sPosY = size.y / 2 - (gfx_current_dimensions.height * factor) / 2;
+            float sPosX = floor(size.x / 2.0f - (gfx_current_dimensions.width * factor) / 2.0f);
+            float sPosY = floor(size.y / 2.0f - (gfx_current_dimensions.height * factor) / 2.0f);
             pos = ImVec2(sPosX, sPosY);
             size = ImVec2(float(gfx_current_dimensions.width) * factor, float(gfx_current_dimensions.height) * factor);
         }
@@ -665,8 +686,22 @@ ImTextureID Gui::GetTextureById(int32_t id) {
     return reinterpret_cast<ImTextureID>(id);
 }
 
+bool Gui::HasTextureByName(const std::string& name) {
+    return mGuiTextures.contains(name);
+}
+
 ImTextureID Gui::GetTextureByName(const std::string& name) {
+    if (!Gui::HasTextureByName(name)) {
+        return nullptr;
+    }
     return GetTextureById(mGuiTextures[name].RendererTextureId);
+}
+
+ImVec2 Gui::GetTextureSize(const std::string& name) {
+    if (!Gui::HasTextureByName(name)) {
+        return ImVec2(0, 0);
+    }
+    return ImVec2(mGuiTextures[name].Width, mGuiTextures[name].Height);
 }
 
 void Gui::ImGuiRenderDrawData(ImDrawData* data) {
@@ -785,7 +820,7 @@ void Gui::LoadGuiTexture(const std::string& name, const std::string& path, const
         texBuffer[pixel * 4 + 3] *= tint.w;
     }
 
-    GuiTexture asset;
+    GuiTextureMetadata asset;
     asset.RendererTextureId = api->new_texture();
     asset.Width = res->Width;
     asset.Height = res->Height;
@@ -799,10 +834,6 @@ void Gui::LoadGuiTexture(const std::string& name, const std::string& path, const
 
 std::shared_ptr<GameOverlay> Gui::GetGameOverlay() {
     return mGameOverlay;
-}
-
-std::shared_ptr<InputViewer> Gui::GetInputViewer() {
-    return mInputViewer;
 }
 
 void Gui::SetMenuBar(std::shared_ptr<GuiMenuBar> menuBar) {

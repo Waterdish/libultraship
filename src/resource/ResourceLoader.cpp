@@ -23,108 +23,95 @@ ResourceLoader::~ResourceLoader() {
 }
 
 void ResourceLoader::RegisterGlobalResourceFactories() {
-    RegisterResourceFactory(ResourceType::Texture, "Texture", std::make_shared<TextureFactory>());
-    RegisterResourceFactory(ResourceType::Vertex, "Vertex", std::make_shared<VertexFactory>());
-    RegisterResourceFactory(ResourceType::DisplayList, "DisplayList", std::make_shared<DisplayListFactory>());
-    RegisterResourceFactory(ResourceType::Matrix, "Matrix", std::make_shared<MatrixFactory>());
-    RegisterResourceFactory(ResourceType::Array, "Array", std::make_shared<ArrayFactory>());
-    RegisterResourceFactory(ResourceType::Blob, "Blob", std::make_shared<BlobFactory>());
+    RegisterResourceFactory(std::make_shared<ResourceFactoryBinaryTextureV0>(), RESOURCE_FORMAT_BINARY, "Texture",
+                            static_cast<uint32_t>(ResourceType::Texture), 0);
+    RegisterResourceFactory(std::make_shared<ResourceFactoryBinaryTextureV1>(), RESOURCE_FORMAT_BINARY, "Texture",
+                            static_cast<uint32_t>(ResourceType::Texture), 1);
+    RegisterResourceFactory(std::make_shared<ResourceFactoryBinaryVertexV0>(), RESOURCE_FORMAT_BINARY, "Vertex",
+                            static_cast<uint32_t>(ResourceType::Vertex), 0);
+    RegisterResourceFactory(std::make_shared<ResourceFactoryXMLVertexV0>(), RESOURCE_FORMAT_XML, "Vertex",
+                            static_cast<uint32_t>(ResourceType::Vertex), 0);
+    RegisterResourceFactory(std::make_shared<ResourceFactoryBinaryDisplayListV0>(), RESOURCE_FORMAT_BINARY,
+                            "DisplayList", static_cast<uint32_t>(ResourceType::DisplayList), 0);
+    RegisterResourceFactory(std::make_shared<ResourceFactoryXMLDisplayListV0>(), RESOURCE_FORMAT_XML, "DisplayList",
+                            static_cast<uint32_t>(ResourceType::DisplayList), 0);
+    RegisterResourceFactory(std::make_shared<ResourceFactoryBinaryMatrixV0>(), RESOURCE_FORMAT_BINARY, "Matrix",
+                            static_cast<uint32_t>(ResourceType::Matrix), 0);
+    RegisterResourceFactory(std::make_shared<ResourceFactoryBinaryArrayV0>(), RESOURCE_FORMAT_BINARY, "Array",
+                            static_cast<uint32_t>(ResourceType::Array), 0);
+    RegisterResourceFactory(std::make_shared<ResourceFactoryBinaryBlobV0>(), RESOURCE_FORMAT_BINARY, "Blob",
+                            static_cast<uint32_t>(ResourceType::Blob), 0);
 }
 
-bool ResourceLoader::RegisterResourceFactory(ResourceType resourceType, std::string resourceTypeXML,
-                                             std::shared_ptr<ResourceFactory> factory) {
-    if (mFactories.contains(resourceType)) {
-        return false;
+bool ResourceLoader::RegisterResourceFactory(std::shared_ptr<ResourceFactory> factory, uint32_t format,
+                                             std::string typeName, uint32_t type, uint32_t version) {
+    if (mResourceTypes.contains(typeName)) {
+        if (mResourceTypes[typeName] != type) {
+            SPDLOG_ERROR("Failed to register resource factory: conflicting types for name {}", typeName);
+            return false;
+        }
+    } else {
+        mResourceTypes[typeName] = type;
     }
 
-    mFactories[resourceType] = factory;
-    mFactoriesStr[resourceTypeXML] = factory;
-    mFactoriesTypes[resourceTypeXML] = resourceType;
+    ResourceFactoryKey key{ .resourceFormat = format, .resourceType = type, .resourceVersion = version };
+    if (mFactories.contains(key)) {
+        SPDLOG_ERROR("Failed to register resource factory: factory with key {}{}{} already exists", format, type,
+                     version);
+        return false;
+    }
+    mFactories[key] = factory;
+
     return true;
 }
 
-std::shared_ptr<IResource> ResourceLoader::LoadResource(std::shared_ptr<File> fileToLoad) {
-    std::shared_ptr<IResource> result = nullptr;
-
-    if (fileToLoad != nullptr) {
-        auto stream = std::make_shared<MemoryStream>(fileToLoad->Buffer.data(), fileToLoad->Buffer.size());
-        auto reader = std::make_shared<BinaryReader>(stream);
-
-        // Determine if file is binary or XML...
-        uint8_t firstByte = reader->ReadInt8();
-
-        auto resourceInitData = std::make_shared<ResourceInitData>();
-        resourceInitData->Path = fileToLoad->Path;
-        resourceInitData->Id = 0xDEADBEEFDEADBEEF;
-        resourceInitData->Type = ResourceType::None;
-        resourceInitData->ResourceVersion = -1;
-        resourceInitData->IsCustom = false;
-        resourceInitData->ByteOrder = Endianness::Native;
-
-        // If first byte is '<' then we are loading XML, else we are loading OTR binary.
-        if (firstByte == '<') {
-            // XML
-            resourceInitData->IsCustom = true;
-            reader->Seek(-1, SeekOffsetType::Current);
-
-            std::string xmlStr = reader->ReadCString();
-
-            tinyxml2::XMLDocument doc;
-            tinyxml2::XMLError eResult = doc.Parse(xmlStr.data());
-
-            // OTRTODO: Error checking
-
-            auto root = doc.FirstChildElement();
-
-            std::string nodeName = root->Name();
-            resourceInitData->ResourceVersion = root->IntAttribute("Version");
-
-            auto factory = mFactoriesStr[nodeName];
-            resourceInitData->Type = mFactoriesTypes[nodeName];
-
-            if (factory != nullptr) {
-                result = factory->ReadResourceXML(resourceInitData, root);
-            }
-        } else {
-            // OTR HEADER BEGIN
-            // Byte Order
-            resourceInitData->ByteOrder = (Endianness)firstByte;
-            reader->SetEndianness(resourceInitData->ByteOrder);
-            // Is this asset custom?
-            resourceInitData->IsCustom = (bool)reader->ReadInt8();
-            // Unused two bytes
-            for (int i = 0; i < 2; i++) {
-                reader->ReadInt8();
-            }
-            // The type of the resource
-            resourceInitData->Type = (ResourceType)reader->ReadUInt32();
-            // Resource version
-            resourceInitData->ResourceVersion = reader->ReadUInt32();
-            // Unique asset ID
-            resourceInitData->Id = reader->ReadUInt64();
-            // ????
-            reader->ReadUInt32();
-            // ROM CRC
-            reader->ReadUInt64();
-            // ROM Enum
-            reader->ReadUInt32();
-            // Reserved for future file format versions...
-            reader->Seek(64, SeekOffsetType::Start);
-            // OTR HEADER END
-
-            auto factory = mFactories[resourceInitData->Type];
-
-            if (factory != nullptr) {
-                result = factory->ReadResource(resourceInitData, reader);
-            }
-        }
-
-        if (result == nullptr) {
-            SPDLOG_ERROR("Failed to load resource of type {} \"{}\"", (uint32_t)resourceInitData->Type,
-                         resourceInitData->Path);
-        }
+std::shared_ptr<ResourceFactory> ResourceLoader::GetFactory(uint32_t format, uint32_t type, uint32_t version) {
+    ResourceFactoryKey key{ .resourceFormat = format, .resourceType = type, .resourceVersion = version };
+    if (!mFactories.contains(key)) {
+        SPDLOG_ERROR("Could not find resource factory with key {}{}{}", format, type, version);
+        return nullptr;
     }
 
-    return result;
+    return mFactories[key];
+}
+
+std::shared_ptr<ResourceFactory> ResourceLoader::GetFactory(uint32_t format, std::string typeName, uint32_t version) {
+    if (!mResourceTypes.contains(typeName)) {
+        SPDLOG_ERROR("Could not find resource type for name {}", typeName);
+        return nullptr;
+    }
+
+    return GetFactory(format, mResourceTypes[typeName], version);
+}
+
+std::shared_ptr<IResource> ResourceLoader::LoadResource(std::shared_ptr<File> fileToLoad) {
+    if (fileToLoad == nullptr) {
+        SPDLOG_ERROR("Failed to load resource: File not loaded");
+        return nullptr;
+    }
+
+    if (fileToLoad->InitData == nullptr) {
+        SPDLOG_ERROR("Failed to load resource: ResourceInitData not loaded");
+        return nullptr;
+    }
+
+    auto factory =
+        GetFactory(fileToLoad->InitData->Format, fileToLoad->InitData->Type, fileToLoad->InitData->ResourceVersion);
+    if (factory == nullptr) {
+        SPDLOG_ERROR("Failed to load resource: Factory does not exist.\n"
+                     "Path: {}\n"
+                     "Type: {}\n"
+                     "Format: {}\n"
+                     "Version: {}",
+                     fileToLoad->InitData->Path, fileToLoad->InitData->Type, fileToLoad->InitData->Format,
+                     fileToLoad->InitData->ResourceVersion);
+        return nullptr;
+    }
+
+    return factory->ReadResource(fileToLoad);
+}
+
+uint32_t ResourceLoader::GetResourceType(const std::string& type) {
+    return mResourceTypes.contains(type) ? mResourceTypes[type] : static_cast<uint32_t>(ResourceType::None);
 }
 } // namespace LUS

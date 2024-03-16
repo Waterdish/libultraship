@@ -43,20 +43,110 @@ target_sources(libultraship PRIVATE ${Source_Files__Audio})
 #=================== Controller ===================
 
 set(Source_Files__Controller
-    ${CMAKE_CURRENT_SOURCE_DIR}/controller/ControlDeck.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/controller/ControlDeck.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/controller/Controller.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/controller/Controller.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/controller/DummyController.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/controller/DummyController.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/controller/KeyboardController.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/controller/KeyboardController.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldeck/ControlDeck.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldeck/ControlDeck.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldeck/ControlPort.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldeck/ControlPort.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/ControlDevice.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/ControlDevice.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/ControllerButton.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/ControllerButton.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/Controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/Controller.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/ControllerGyro.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/ControllerGyro.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/ControllerLED.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/ControllerLED.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/ControllerRumble.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/ControllerRumble.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/ControllerStick.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/ControllerStick.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerAxisDirectionMapping.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerAxisDirectionMapping.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerButtonMapping.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerButtonMapping.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerGyroMapping.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerGyroMapping.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerInputMapping.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerInputMapping.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerLEDMapping.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerLEDMapping.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerMapping.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerMapping.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerRumbleMapping.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/ControllerRumbleMapping.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/factories/AxisDirectionMappingFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/factories/AxisDirectionMappingFactory.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/factories/ButtonMappingFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/factories/ButtonMappingFactory.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/factories/GyroMappingFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/factories/GyroMappingFactory.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/factories/LEDMappingFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/factories/LEDMappingFactory.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/factories/RumbleMappingFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/factories/RumbleMappingFactory.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/ControllerDisconnectedWindow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/ControllerDisconnectedWindow.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/ControllerReorderingWindow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/ControllerReorderingWindow.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/LUSDeviceIndex.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/LUSDeviceIndexMappingManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/LUSDeviceIndexMappingManager.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/LUSDeviceIndexToPhysicalDeviceIndexMapping.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/LUSDeviceIndexToPhysicalDeviceIndexMapping.h
 )
+
+if (CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+    list(APPEND Source_Files__Controller
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUAxisDirectionToAxisDirectionMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUAxisDirectionToAxisDirectionMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUButtonToAnyMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUButtonToAnyMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUButtonToAxisDirectionMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUButtonToAxisDirectionMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUButtonToButtonMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUButtonToButtonMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUGyroMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUGyroMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiUMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiURumbleMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/wiiu/WiiURumbleMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/LUSDeviceIndexToWiiUDeviceIndexMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/LUSDeviceIndexToWiiUDeviceIndexMapping.h
+    )
+endif()
 
 if (NOT CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
     list(APPEND Source_Files__Controller
-        ${CMAKE_CURRENT_SOURCE_DIR}/controller/SDLController.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/controller/SDLController.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/keyboard/KeyboardKeyToAnyMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/keyboard/KeyboardKeyToAnyMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/keyboard/KeyboardKeyToAxisDirectionMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/keyboard/KeyboardKeyToAxisDirectionMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/keyboard/KeyboardKeyToButtonMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/keyboard/KeyboardKeyToButtonMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLAxisDirectionToAnyMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLAxisDirectionToAnyMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLAxisDirectionToAxisDirectionMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLAxisDirectionToAxisDirectionMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLAxisDirectionToButtonMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLAxisDirectionToButtonMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLButtonToAnyMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLButtonToAnyMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLButtonToAxisDirectionMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLButtonToAxisDirectionMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLButtonToButtonMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLButtonToButtonMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLGyroMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLGyroMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLLEDMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLLEDMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLRumbleMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/controldevice/controller/mapping/sdl/SDLRumbleMapping.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/LUSDeviceIndexToSDLDeviceIndexMapping.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller/deviceindex/LUSDeviceIndexToSDLDeviceIndexMapping.h
     )
 endif()
 
@@ -145,8 +235,6 @@ set(Source_Files__Window__Gui
     ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/Gui.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/InputEditorWindow.h
     ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/InputEditorWindow.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/InputViewer.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/InputViewer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/GameOverlay.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/GameOverlay.h
     ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/Fonts.h
@@ -159,6 +247,14 @@ set(Source_Files__Window__Gui
     ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/GuiElement.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/GuiMenuBar.h
     ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/GuiMenuBar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/resource/Font.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/resource/Font.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/resource/FontFactory.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/resource/FontFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/resource/GuiTexture.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/resource/GuiTexture.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/resource/GuiTextureFactory.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/window/gui/resource/GuiTextureFactory.cpp
 )
 
 source_group("window/gui" FILES ${Source_Files__Window__Gui})
@@ -206,10 +302,6 @@ target_sources(libultraship PRIVATE ${Source_Files__Utils__BinaryTools})
 
 if (CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
     set(Source_Files__Port
-        ${CMAKE_CURRENT_SOURCE_DIR}/port/wiiu/WiiUController.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/port/wiiu/WiiUController.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/port/wiiu/WiiUGamepad.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/port/wiiu/WiiUGamepad.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/port/wiiu/WiiUImpl.h
         ${CMAKE_CURRENT_SOURCE_DIR}/port/wiiu/WiiUImpl.cpp
     )
@@ -232,8 +324,6 @@ target_sources(libultraship PRIVATE ${Source_Files__Port})
 #=================== Resource ===================
 
 set(Source_Files__Resource
-    ${CMAKE_CURRENT_SOURCE_DIR}/resource/Archive.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/resource/Archive.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/resource/File.h
     ${CMAKE_CURRENT_SOURCE_DIR}/resource/Resource.h
     ${CMAKE_CURRENT_SOURCE_DIR}/resource/ResourceType.h
@@ -243,7 +333,10 @@ set(Source_Files__Resource
     ${CMAKE_CURRENT_SOURCE_DIR}/resource/ResourceLoader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/resource/ResourceLoader.h
     ${CMAKE_CURRENT_SOURCE_DIR}/resource/ResourceFactory.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/resource/ResourceFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/ResourceFactoryBinary.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/ResourceFactoryBinary.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/ResourceFactoryXML.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/ResourceFactoryXML.cpp
 )
 source_group("resource" FILES ${Source_Files__Resource})
 
@@ -278,7 +371,20 @@ set(Source_Files__Resource__Factories
     ${CMAKE_CURRENT_SOURCE_DIR}/resource/factory/VertexFactory.h
 )
 source_group("resource/factory" FILES ${Source_Files__Resource__Factories})
-target_sources(libultraship PRIVATE ${Source_Files__Resource} ${Source_Files__Resource__Types} ${Source_Files__Resource__Factories})
+
+set(Source_Files__Resource__Archive
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/archive/Archive.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/archive/Archive.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/archive/OtrArchive.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/archive/OtrArchive.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/archive/O2rArchive.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/archive/O2rArchive.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/archive/ArchiveManager.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/archive/ArchiveManager.cpp
+)
+source_group("resource/archive" FILES ${Source_Files__Resource__Archive})
+
+target_sources(libultraship PRIVATE ${Source_Files__Resource} ${Source_Files__Resource__Types} ${Source_Files__Resource__Factories} ${Source_Files__Resource__Archive})
 
 #=================== Graphic ===================
 
@@ -362,10 +468,18 @@ endif()
 
 #=================== Linking ===================
 
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "CafeOS" AND NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    target_link_libraries(libultraship PUBLIC "$<LINK_LIBRARY:WHOLE_ARCHIVE,storm>")
+else()
+    target_link_libraries(libultraship PUBLIC storm)
+endif()
 target_link_libraries(libultraship
     PRIVATE StrHash64
-    PUBLIC ZAPDUtils ImGui storm tinyxml2 nlohmann_json::nlohmann_json
+    PUBLIC ZAPDUtils ImGui tinyxml2 nlohmann_json::nlohmann_json
 )
+
+find_package(libzip REQUIRED)
+target_link_libraries(libultraship PRIVATE libzip::zip)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -381,9 +495,14 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_link_libraries(libultraship PRIVATE ${OSX_FOUNDATION} ${OSX_AVFOUNDATION} ${METAL} ${QUARTZCORE} ${CMAKE_DL_LIBS})
 endif()
 
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    find_package(PulseAudio)
-    target_link_libraries(libultraship PRIVATE ${PULSEAUDIO_LIBRARY})
+if (USE_OPENGLES)
+    if (CMAKE_SYSTEM_NAME STREQUAL "Android")
+        find_library(OPENGLES_LIBRARY GLESv3)
+        target_link_libraries(libultraship PRIVATE GLESv3)
+    else()
+        find_library(OPENGLES_LIBRARY GLESv2)
+        target_link_libraries(libultraship PRIVATE GLESv2)
+    endif()
 endif()
 
 if (USE_OPENGLES)

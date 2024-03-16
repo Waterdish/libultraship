@@ -4,7 +4,10 @@
 #ifndef _LIBULTRASHIP_CLASSES_H
 #define _LIBULTRASHIP_CLASSES_H
 
-#include "resource/Archive.h"
+#include "resource/archive/ArchiveManager.h"
+#include "resource/archive/Archive.h"
+#include "resource/archive/OtrArchive.h"
+#include "resource/archive/O2rArchive.h"
 #include "resource/ResourceManager.h"
 #include "Context.h"
 #include "window/Window.h"
@@ -20,12 +23,9 @@
 #include "window/gui/GuiWindow.h"
 #include "window/gui/InputEditorWindow.h"
 #include "window/gui/StatsWindow.h"
-#include "controller/Controller.h"
-#include "controller/SDLController.h"
-#include "controller/ControlDeck.h"
-#include "controller/KeyboardController.h"
-#include "controller/KeyboardScancodes.h"
-#include "controller/DummyController.h"
+#include "controller/controldevice/controller/mapping/keyboard/KeyboardScancodes.h"
+#include "controller/controldevice/controller/Controller.h"
+#include "controller/controldeck/ControlDeck.h"
 #include "utils/binarytools/BinaryReader.h"
 #include "utils/binarytools/MemoryStream.h"
 #include "utils/binarytools/BinaryWriter.h"
@@ -43,8 +43,6 @@
 #endif
 #ifdef __WIIU__
 #include "port/wiiu/WiiUImpl.h"
-#include "port/wiiu/WiiUController.h"
-#include "port/wiiu/WiiUGamepad.h"
 #endif
 #endif
 #endif

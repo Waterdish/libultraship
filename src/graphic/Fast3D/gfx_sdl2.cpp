@@ -43,6 +43,7 @@
 #ifdef _WIN32
 #include <WTypesbase.h>
 #include <Windows.h>
+#include <SDL_syswm.h>
 #endif
 
 #define GFX_BACKEND_NAME "SDL"
@@ -61,6 +62,10 @@ static void (*on_fullscreen_changed_callback)(bool is_now_fullscreen);
 static bool (*on_key_down_callback)(int scancode);
 static bool (*on_key_up_callback)(int scancode);
 static void (*on_all_keys_up_callback)(void);
+
+#ifdef _WIN32
+LONG_PTR SDL_WndProc;
+#endif
 
 const SDL_Scancode lus_to_sdl_table[] = {
     SDL_SCANCODE_UNKNOWN,
@@ -285,6 +290,21 @@ static int target_fps = 60;
 #define FRAME_INTERVAL_US_NUMERATOR 1000000
 #define FRAME_INTERVAL_US_DENOMINATOR (target_fps)
 
+#ifdef _WIN32
+static LRESULT CALLBACK gfx_sdl_wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param) {
+    switch (message) {
+        case WM_GETDPISCALEDSIZE:
+            // Something is wrong with SDLs original implementation of WM_GETDPISCALEDSIZE, so pass it to the default
+            // system window procedure instead.
+            return DefWindowProc(h_wnd, message, w_param, l_param);
+        default:
+            // Pass anything else to SDLs original window procedure.
+            return CallWindowProc((WNDPROC)SDL_WndProc, h_wnd, message, w_param, l_param);
+    }
+    return 0;
+};
+#endif
+
 static void gfx_sdl_init(const char* game_name, const char* gfx_api_name, bool start_in_fullscreen, uint32_t width,
                          uint32_t height, int32_t posX, int32_t posY) {
     window_width = width;
@@ -302,6 +322,7 @@ static void gfx_sdl_init(const char* game_name, const char* gfx_api_name, bool s
 
     if (use_opengl) {
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+        SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     } else {
         SDL_SetHint(SDL_HINT_RENDER_DRIVER, "metal");
@@ -346,6 +367,15 @@ static void gfx_sdl_init(const char* game_name, const char* gfx_api_name, bool s
     }
 
     wnd = SDL_CreateWindow(title, posX, posY, window_width, window_height, flags);
+#ifdef _WIN32
+    // Get Windows window handle and use it to subclass the window procedure.
+    // Needed to circumvent SDLs DPI scaling problems under windows (original does only scale *sometimes*).
+    SDL_SysWMinfo wmInfo;
+    SDL_VERSION(&wmInfo.version);
+    SDL_GetWindowWMInfo(wnd, &wmInfo);
+    HWND hwnd = wmInfo.info.win.window;
+    SDL_WndProc = SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)gfx_sdl_wnd_proc);
+#endif
     LUS::GuiWindowInitData window_impl;
 
     int display_in_use = SDL_GetWindowDisplayIndex(wnd);
@@ -485,50 +515,57 @@ static void gfx_sdl_onkeyup(int scancode) {
     }
 }
 
-static void gfx_sdl_handle_events(void) {
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        LUS::WindowEvent event_impl;
-        event_impl.Sdl = { &event };
-        LUS::Context::GetInstance()->GetWindow()->GetGui()->Update(event_impl);
-        switch (event.type) {
+static void gfx_sdl_handle_single_event(SDL_Event& event) {
+    LUS::WindowEvent event_impl;
+    event_impl.Sdl = { &event };
+    LUS::Context::GetInstance()->GetWindow()->GetGui()->Update(event_impl);
+    switch (event.type) {
 #ifdef __ANDROID__
-            case SDL_CONTROLLERDEVICEADDED:
-                LUS::Context::GetInstance()->GetControlDeck()->ScanDevices();
-                break;
+        case SDL_CONTROLLERDEVICEADDED:
+            LUS::Context::GetInstance()->GetControlDeck()->ScanDevices();
+            break;
 #endif
 #ifndef TARGET_WEB
-            // Scancodes are broken in Emscripten SDL2: https://bugzilla.libsdl.org/show_bug.cgi?id=3259
-            case SDL_KEYDOWN:
-                gfx_sdl_onkeydown(event.key.keysym.scancode);
-                break;
-            case SDL_KEYUP:
-                gfx_sdl_onkeyup(event.key.keysym.scancode);
-                break;
+        // Scancodes are broken in Emscripten SDL2: https://bugzilla.libsdl.org/show_bug.cgi?id=3259
+        case SDL_KEYDOWN:
+            gfx_sdl_onkeydown(event.key.keysym.scancode);
+            break;
+        case SDL_KEYUP:
+            gfx_sdl_onkeyup(event.key.keysym.scancode);
+            break;
 #endif
-            case SDL_WINDOWEVENT:
-                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+        case SDL_WINDOWEVENT:
+            if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
 #ifdef __SWITCH__
-                    LUS::Switch::GetDisplaySize(&window_width, &window_height);
+                LUS::Switch::GetDisplaySize(&window_width, &window_height);
 #else
-                    SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
+                SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
 #endif
-                } else if (event.window.event == SDL_WINDOWEVENT_CLOSE &&
-                           event.window.windowID == SDL_GetWindowID(wnd)) {
-                    // We listen specifically for main window close because closing main window
-                    // on macOS does not trigger SDL_Quit.
-                    is_running = false;
-                }
-                break;
-            case SDL_DROPFILE:
-                CVarSetString("gDroppedFile", event.drop.file);
-                CVarSetInteger("gNewFileDropped", 1);
-                CVarSave();
-                break;
-            case SDL_QUIT:
+            } else if (event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(wnd)) {
+                // We listen specifically for main window close because closing main window
+                // on macOS does not trigger SDL_Quit.
                 is_running = false;
-                break;
-        }
+            }
+            break;
+        case SDL_DROPFILE:
+            CVarSetString("gDroppedFile", event.drop.file);
+            CVarSetInteger("gNewFileDropped", 1);
+            CVarSave();
+            break;
+        case SDL_QUIT:
+            is_running = false;
+            break;
+    }
+}
+
+static void gfx_sdl_handle_events(void) {
+    SDL_Event event;
+    SDL_PumpEvents();
+    while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_CONTROLLERDEVICEADDED - 1) > 0) {
+        gfx_sdl_handle_single_event(event);
+    }
+    while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_CONTROLLERDEVICEREMOVED + 1, SDL_LASTEVENT) > 0) {
+        gfx_sdl_handle_single_event(event);
     }
 }
 
@@ -538,7 +575,8 @@ static bool gfx_sdl_start_frame(void) {
 
 static uint64_t qpc_to_100ns(uint64_t qpc) {
     const uint64_t qpc_freq = SDL_GetPerformanceFrequency();
-    return qpc / qpc_freq * 10000000 + qpc % qpc_freq * 10000000 / qpc_freq;
+    qpc *= 10000000;
+    return qpc / qpc_freq;
 }
 
 static inline void sync_framerate_with_timer(void) {
