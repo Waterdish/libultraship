@@ -9,6 +9,7 @@ if (NOT ${SDL2_FOUND})
         GIT_TAG release-2.28.1
         OVERRIDE_FIND_PACKAGE
     )
+    set(SDL_SHARED ON)
     FetchContent_MakeAvailable(SDL2)
 endif()
 
@@ -69,4 +70,4 @@ if (NOT ${libzip_FOUND})
     list(APPEND ADDITIONAL_LIB_INCLUDES ${libzip_SOURCE_DIR}/lib ${libzip_BINARY_DIR})
 endif()
 
-target_link_libraries(ImGui PUBLIC SDL2::SDL2-static SDL2::SDL2main)
+target_link_libraries(ImGui PUBLIC SDL2::SDL2 SDL2::SDL2main)
