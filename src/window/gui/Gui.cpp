@@ -53,7 +53,11 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARA
 #endif
 
 namespace Ship {
-#define TOGGLE_BTN ImGuiKey_F1
+#ifdef __ANDROID__
+    #define TOGGLE_BTN ImGuiKey_AppBack
+#else
+    #define TOGGLE_BTN ImGuiKey_F1
+#endif
 #define TOGGLE_PAD_BTN ImGuiKey_GamepadBack
 
 Gui::Gui(std::vector<std::shared_ptr<GuiWindow>> guiWindows) : mNeedsConsoleVariableSave(false) {
@@ -120,9 +124,11 @@ void Gui::Init(GuiWindowInitData windowImpl) {
                                                           &iconsConfig, sIconsRanges);
 
 #if defined(__ANDROID__)
-    // Scale everything by 2 for Android
-    ImGui::GetStyle().ScaleAllSizes(2.0f);
-    mImGuiIo->FontGlobalScale = 2.0f;
+    // Scale everything by 4 for Android and enable gamepad
+    ImGui::GetStyle().ScaleAllSizes(3.0f);
+    mImGuiIo->FontGlobalScale = 3.0f;
+    mImGuiIo->ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    CVarSetInteger(CVAR_IMGUI_CONTROLLER_NAV, 1);
 #endif
 
     auto imguiIniPath = Ship::Context::GetPathRelativeToAppDirectory("imgui.ini");
@@ -134,11 +140,13 @@ void Gui::Init(GuiWindowInitData windowImpl) {
         mImGuiIo->ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     }
 
+#ifndef __ANDROID__ // Clean this up
     if (CVarGetInteger(CVAR_IMGUI_CONTROLLER_NAV, 0) && GetMenuBar() && GetMenuBar()->IsVisible()) {
         mImGuiIo->ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     } else {
         mImGuiIo->ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
     }
+#endif
 
     GetGuiWindow("Stats")->Init();
     GetGuiWindow("Input Editor")->Init();
@@ -332,11 +340,13 @@ void Gui::DrawMenu() {
         if (wnd->IsFullscreen()) {
             Context::GetInstance()->GetWindow()->SetCursorVisibility(GetMenuBar() && GetMenuBar()->IsVisible());
         }
+#ifndef __ANDROID__ // Clean this up
         if (CVarGetInteger(CVAR_IMGUI_CONTROLLER_NAV, 0) && GetMenuBar() && GetMenuBar()->IsVisible()) {
             mImGuiIo->ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
         } else {
             mImGuiIo->ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
         }
+#endif
     }
 
 #if __APPLE__
