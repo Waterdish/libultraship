@@ -9,8 +9,6 @@ if (NOT ${SDL2_FOUND})
         GIT_TAG release-2.30.3
         OVERRIDE_FIND_PACKAGE
     )
-    set(SDL_SHARED ON)
-    set(SDL_STATIC ON)
     FetchContent_MakeAvailable(SDL2)
 endif()
 
