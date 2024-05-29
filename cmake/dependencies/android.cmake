@@ -10,6 +10,7 @@ if (NOT ${SDL2_FOUND})
         OVERRIDE_FIND_PACKAGE
     )
     set(SDL_SHARED ON)
+    set(SDL_STATIC ON)
     FetchContent_MakeAvailable(SDL2)
 endif()
 
@@ -70,4 +71,4 @@ if (NOT ${libzip_FOUND})
     list(APPEND ADDITIONAL_LIB_INCLUDES ${libzip_SOURCE_DIR}/lib ${libzip_BINARY_DIR})
 endif()
 
-target_link_libraries(ImGui PUBLIC SDL2::SDL2 SDL2::SDL2main)
+target_link_libraries(ImGui PUBLIC SDL2::SDL2)
