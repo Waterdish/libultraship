@@ -40,7 +40,7 @@ Fast3dWindow::~Fast3dWindow() {
 void Fast3dWindow::Init() {
     bool gameMode = false;
 
-#ifdef __linux__
+#if defined(__linux__) && !defined(__ANDROID__)
     std::ifstream osReleaseFile("/etc/os-release");
     if (osReleaseFile.is_open()) {
         std::string line;
