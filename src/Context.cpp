@@ -357,7 +357,7 @@ std::string Context::GetAppBundlePath() {
 
 std::string Context::GetAppDirectoryPath(std::string appName) {
 #if defined(__ANDROID__)
-    const char* externaldir = SDL_AndroidGetExternalStoragePath();
+    const char* externaldir = "/storage/emulated/0/Android/data/com.dishii.mm/files"; //SDL_AndroidGetExternalStoragePath();
     if (externaldir != NULL) {
         return externaldir;
     }
