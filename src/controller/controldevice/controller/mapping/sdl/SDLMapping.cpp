@@ -13,6 +13,10 @@ SDLMapping::~SDLMapping() {
 }
 
 bool SDLMapping::OpenController() {
+#ifdef __ANDROID__ // for gyro
+    if(!SDL_WasInit(SDL_INIT_SENSOR))
+        SDL_Init(SDL_INIT_SENSOR);
+#endif
     auto deviceIndexMapping = std::static_pointer_cast<ShipDeviceIndexToSDLDeviceIndexMapping>(
         Ship::Context::GetInstance()
             ->GetControlDeck()
@@ -41,7 +45,12 @@ bool SDLMapping::CloseController() {
         SDL_GameControllerClose(mController);
     }
     mController = nullptr;
-
+#ifdef __ANDROID__
+    if(gyroSensor != nullptr){
+        SDL_Log("This");
+        SDL_SensorClose(gyroSensor);
+    }
+#endif
     return true;
 }
 

@@ -16,6 +16,9 @@ class SDLGyroMapping final : public ControllerGyroMapping, public SDLMapping {
     bool PhysicalDeviceIsConnected() override;
 
   private:
+#ifdef __ANDROID__
+    void GetAndroidGyroData(float gyroData[3]);
+#endif
     float mNeutralPitch;
     float mNeutralYaw;
     float mNeutralRoll;

@@ -67,7 +67,19 @@ std::shared_ptr<ControllerGyroMapping> GyroMappingFactory::CreateGyroMappingFrom
         if (SDL_GameControllerHasSensor(controller, SDL_SENSOR_GYRO)) {
             sdlControllersWithGyro[lusIndex] = SDL_GameControllerOpen(sdlIndex);
         } else {
+#ifdef __ANDROID__
+            for (int i = 0; i<SDL_NumSensors();i++) {
+                if (SDL_SensorGetDeviceType(i) == SDL_SENSOR_GYRO) {
+                    sdlControllersWithGyro[lusIndex] = SDL_GameControllerOpen(sdlIndex);
+                    break;
+                }
+            }
+            if(sdlControllersWithGyro[lusIndex] == nullptr){
+                SDL_GameControllerClose(controller);
+            }
+#else
             SDL_GameControllerClose(controller);
+#endif
         }
     }
 
