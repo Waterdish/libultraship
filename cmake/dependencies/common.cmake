@@ -6,7 +6,7 @@ find_package(OpenGL QUIET)
 FetchContent_Declare(
     ImGui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG ce0d0ac8298ce164b5d862577e8b087d92f6e90e # docking 1.90.0
+    GIT_TAG v1.90.7-docking
 )
 FetchContent_MakeAvailable(ImGui)
 list(APPEND ADDITIONAL_LIB_INCLUDES ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
@@ -23,11 +23,20 @@ target_sources(ImGui
     ${imgui_SOURCE_DIR}/imgui.cpp
 )
 
-target_sources(ImGui
-    PRIVATE
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
-)
+# I know this isn't where it goes, but Android needs a custom imgui impl sdl2 file.
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+    target_sources(ImGui
+        PRIVATE
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
+    )
+else()
+    target_sources(ImGui
+        PRIVATE
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/port/mobile/imgui_impl_sdl2.cpp # Custom implementation
+    )
+endif()
 
 target_include_directories(ImGui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends PRIVATE ${SDL2_INCLUDE_DIRS})
 

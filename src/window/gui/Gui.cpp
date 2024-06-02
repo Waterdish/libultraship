@@ -124,10 +124,9 @@ void Gui::Init(GuiWindowInitData windowImpl) {
                                                           &iconsConfig, sIconsRanges);
 
 #if defined(__ANDROID__)
-    // Scale everything by 4 for Android and enable gamepad
+    // Scale everything by 3 for Android and enable gamepad
     ImGui::GetStyle().ScaleAllSizes(3.0f);
     mImGuiIo->FontGlobalScale = 3.0f;
-    mImGuiIo->ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     CVarSetInteger(CVAR_IMGUI_CONTROLLER_NAV, 1);
 #endif
 
@@ -139,14 +138,11 @@ void Gui::Init(GuiWindowInitData windowImpl) {
     if (SupportsViewports() && CVarGetInteger(CVAR_ENABLE_MULTI_VIEWPORTS, 1)) {
         mImGuiIo->ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     }
-
-#ifndef __ANDROID__ // Clean this up
     if (CVarGetInteger(CVAR_IMGUI_CONTROLLER_NAV, 0) && GetMenuBar() && GetMenuBar()->IsVisible()) {
         mImGuiIo->ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     } else {
         mImGuiIo->ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
     }
-#endif
 
     GetGuiWindow("Stats")->Init();
     GetGuiWindow("Input Editor")->Init();
@@ -333,20 +329,18 @@ void Gui::DrawMenu() {
     }
 
     ImGui::DockSpace(dockId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None | ImGuiDockNodeFlags_NoDockingInCentralNode);
-
+    
     if (ImGui::IsKeyPressed(TOGGLE_BTN) ||
         (ImGui::IsKeyPressed(TOGGLE_PAD_BTN) && CVarGetInteger(CVAR_IMGUI_CONTROLLER_NAV, 0))) {
         GetMenuBar()->ToggleVisibility();
         if (wnd->IsFullscreen()) {
             Context::GetInstance()->GetWindow()->SetCursorVisibility(GetMenuBar() && GetMenuBar()->IsVisible());
         }
-#ifndef __ANDROID__ // Clean this up
         if (CVarGetInteger(CVAR_IMGUI_CONTROLLER_NAV, 0) && GetMenuBar() && GetMenuBar()->IsVisible()) {
             mImGuiIo->ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
         } else {
             mImGuiIo->ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
         }
-#endif
     }
 
 #if __APPLE__

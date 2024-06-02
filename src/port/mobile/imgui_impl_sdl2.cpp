@@ -284,7 +284,11 @@ static ImGuiKey ImGui_ImplSDL2_KeycodeToImGuiKey(int keycode)
         case SDLK_F22: return ImGuiKey_F22;
         case SDLK_F23: return ImGuiKey_F23;
         case SDLK_F24: return ImGuiKey_F24;
-        case SDLK_AC_BACK: return ImGuiKey_AppBack;
+#ifndef __ANDROID__ // Not a very pretty solution, but allows minimal code change in LUS
+        case SDLK_AC_BACK: return ImGuiKey_AppBack; 
+#else
+        case SDLK_AC_BACK: return ImGuiKey_F1;
+#endif
         case SDLK_AC_FORWARD: return ImGuiKey_AppForward;
     }
     return ImGuiKey_None;
@@ -666,10 +670,11 @@ static void ImGui_ImplSDL2_UpdateGamepads()
                 }
         bd->WantUpdateGamepadsList = false;
     }
-
-    // FIXME: Technically feeding gamepad shouldn't depend on this now that they are regular inputs.
-    if ((io.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) == 0)
+    
+    #if !defined(__SWITCH__) && !defined(__ANDROID__)
+    if ((io.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) == 0) // FIXME: Technically feeding gamepad shouldn't depend on this now that they are regular inputs.
         return;
+    #endif
     io.BackendFlags &= ~ImGuiBackendFlags_HasGamepad;
     if (bd->Gamepads.Size == 0)
         return;
