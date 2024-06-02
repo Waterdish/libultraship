@@ -74,7 +74,6 @@ static GLuint opengl_vbo;
 #if defined(__APPLE__) || defined(USE_OPENGLES)
 static GLuint opengl_vao;
 #endif
-static bool current_depth_mask;
 
 static uint32_t frame_count;
 
@@ -82,6 +81,12 @@ static vector<Framebuffer> framebuffers;
 static size_t current_framebuffer;
 static float current_noise_scale;
 static FilteringMode current_filter_mode = FILTER_THREE_POINT;
+static int8_t current_depth_test;
+static int8_t current_depth_mask;
+static int8_t current_zmode_decal;
+static int8_t last_depth_test;
+static int8_t last_depth_mask;
+static int8_t last_zmode_decal;
 
 GLint max_msaa_level = 1;
 GLuint pixel_depth_rb, pixel_depth_fb;
@@ -516,6 +521,22 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
 
     append_line(fs_buf, &fs_len, cc_features.opt_alpha ? "vec4 texel;" : "vec3 texel;");
     for (int c = 0; c < (cc_features.opt_2cyc ? 2 : 1); c++) {
+        if (c == 1) {
+            if (cc_features.opt_alpha) {
+                if (cc_features.c[c][1][2] == SHADER_COMBINED) {
+                    append_line(fs_buf, &fs_len, "texel.a = WRAP(texel.a, -1.01, 1.01);");
+                } else {
+                    append_line(fs_buf, &fs_len, "texel.a = WRAP(texel.a, -0.51, 1.51);");
+                }
+            }
+
+            if (cc_features.c[c][0][2] == SHADER_COMBINED) {
+                append_line(fs_buf, &fs_len, "texel.rgb = WRAP(texel.rgb, -1.01, 1.01);");
+            } else {
+                append_line(fs_buf, &fs_len, "texel.rgb = WRAP(texel.rgb, -0.51, 1.51);");
+            }
+        }
+
         append_str(fs_buf, &fs_len, "texel = ");
         if (!cc_features.color_alpha_same[c] && cc_features.opt_alpha) {
             append_str(fs_buf, &fs_len, "vec4(");
@@ -531,14 +552,10 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
                            cc_features.opt_alpha);
         }
         append_line(fs_buf, &fs_len, ";");
-
-        if (c == 0 && !CVarGetInteger(CVAR_DISABLE_CLOSE_COLOR_WRAP, 0)) {
-            append_str(fs_buf, &fs_len, "texel.rgb = WRAP(texel.rgb, -1.01, 1.01);");
-        }
     }
 
-    append_str(fs_buf, &fs_len, "texel.rgb = WRAP(texel.rgb, -0.51, 1.51);");
-    append_str(fs_buf, &fs_len, "texel.rgb = clamp(texel.rgb, 0.0, 1.0);");
+    append_str(fs_buf, &fs_len, "texel = WRAP(texel, -0.51, 1.51);");
+    append_str(fs_buf, &fs_len, "texel = clamp(texel, 0.0, 1.0);");
     // TODO discard if alpha is 0?
     if (cc_features.opt_fog) {
         if (cc_features.opt_alpha) {
@@ -779,48 +796,12 @@ static void gfx_opengl_set_sampler_parameters(int tile, bool linear_filter, uint
 }
 
 static void gfx_opengl_set_depth_test_and_mask(bool depth_test, bool z_upd) {
-    if (depth_test || z_upd) {
-        glEnable(GL_DEPTH_TEST);
-        glDepthMask(z_upd ? GL_TRUE : GL_FALSE);
-        glDepthFunc(depth_test ? GL_LEQUAL : GL_ALWAYS);
-        current_depth_mask = z_upd;
-    } else {
-        glDisable(GL_DEPTH_TEST);
-    }
+    current_depth_test = depth_test;
+    current_depth_mask = z_upd;
 }
 
 static void gfx_opengl_set_zmode_decal(bool zmode_decal) {
-    if (zmode_decal) {
-
-        // SSDB = SlopeScaledDepthBias 120 leads to -2 at 240p which is the same as N64 mode which has very little
-        // fighting
-        const int n64modeFactor = 120;
-        const int noVanishFactor = 100;
-        GLfloat SSDB = -2;
-        switch (CVarGetInteger(CVAR_Z_FIGHTING_MODE, 0)) {
-            // scaled z-fighting (N64 mode like)
-            case 1:
-                if (framebuffers.size() > current_framebuffer) { // safety check for vector size can probably be removed
-                    SSDB = -1.0f * (GLfloat)framebuffers[current_framebuffer].height / n64modeFactor;
-                }
-                break;
-            // no vanishing paths
-            case 2:
-                if (framebuffers.size() > current_framebuffer) { // safety check for vector size can probably be removed
-                    SSDB = -1.0f * (GLfloat)framebuffers[current_framebuffer].height / noVanishFactor;
-                }
-                break;
-            // disabled
-            case 0:
-            default:
-                SSDB = -2;
-        }
-        glPolygonOffset(SSDB, -2);
-        glEnable(GL_POLYGON_OFFSET_FILL);
-    } else {
-        glPolygonOffset(0, 0);
-        glDisable(GL_POLYGON_OFFSET_FILL);
-    }
+    current_zmode_decal = zmode_decal;
 }
 
 static void gfx_opengl_set_viewport(int x, int y, int width, int height) {
@@ -840,6 +821,55 @@ static void gfx_opengl_set_use_alpha(bool use_alpha) {
 }
 
 static void gfx_opengl_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
+    if (current_depth_test != last_depth_test || current_depth_mask != last_depth_mask) {
+        last_depth_test = current_depth_test;
+        last_depth_mask = current_depth_mask;
+
+        if (current_depth_test || last_depth_mask) {
+            glEnable(GL_DEPTH_TEST);
+            glDepthMask(last_depth_mask ? GL_TRUE : GL_FALSE);
+            glDepthFunc(current_depth_test ? (current_zmode_decal ? GL_LEQUAL : GL_LESS) : GL_ALWAYS);
+        } else {
+            glDisable(GL_DEPTH_TEST);
+        }
+    }
+
+    if (current_zmode_decal != last_zmode_decal) {
+        last_zmode_decal = current_zmode_decal;
+        if (current_zmode_decal) {
+            // SSDB = SlopeScaledDepthBias 120 leads to -2 at 240p which is the same as N64 mode which has very little
+            // fighting
+            const int n64modeFactor = 120;
+            const int noVanishFactor = 100;
+            GLfloat SSDB = -2;
+            switch (CVarGetInteger(CVAR_Z_FIGHTING_MODE, 0)) {
+                // scaled z-fighting (N64 mode like)
+                case 1:
+                    if (framebuffers.size() >
+                        current_framebuffer) { // safety check for vector size can probably be removed
+                        SSDB = -1.0f * (GLfloat)framebuffers[current_framebuffer].height / n64modeFactor;
+                    }
+                    break;
+                // no vanishing paths
+                case 2:
+                    if (framebuffers.size() >
+                        current_framebuffer) { // safety check for vector size can probably be removed
+                        SSDB = -1.0f * (GLfloat)framebuffers[current_framebuffer].height / noVanishFactor;
+                    }
+                    break;
+                // disabled
+                case 0:
+                default:
+                    SSDB = -2;
+            }
+            glPolygonOffset(SSDB, -2);
+            glEnable(GL_POLYGON_OFFSET_FILL);
+        } else {
+            glPolygonOffset(0, 0);
+            glDisable(GL_POLYGON_OFFSET_FILL);
+        }
+    }
+
     // printf("flushing %d tris\n", buf_vbo_num_tris);
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * buf_vbo_len, buf_vbo, GL_STREAM_DRAW);
     glDrawArrays(GL_TRIANGLES, 0, 3 * buf_vbo_num_tris);
@@ -991,8 +1021,7 @@ void gfx_opengl_start_draw_to_framebuffer(int fb_id, float noise_scale) {
 void gfx_opengl_clear_framebuffer() {
     glDisable(GL_SCISSOR_TEST);
     glDepthMask(GL_TRUE);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_DEPTH_BUFFER_BIT);
     glDepthMask(current_depth_mask ? GL_TRUE : GL_FALSE);
     glEnable(GL_SCISSOR_TEST);
 }

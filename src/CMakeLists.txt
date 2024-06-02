@@ -217,6 +217,10 @@ endif()
 
 #=================== Compile Options & Defs ===================
 
+if(USE_F3DEX2)
+    target_compile_definitions(libultraship PRIVATE F3DEX_GBI_2)
+endif()
+
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         WIN32
@@ -250,10 +254,12 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
             XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
         )
 
-        set_target_properties(SDL2 PROPERTIES
-            XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ""
-            XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
-        )
+        if(TARGET SDL2)
+            set_target_properties(SDL2 PROPERTIES
+                XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ""
+                XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+            )
+        endif()
 
         set_target_properties(zip PROPERTIES
             XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ""

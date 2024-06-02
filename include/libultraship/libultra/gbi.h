@@ -47,8 +47,6 @@
         macro      \
     } while (0)
 
-#define F3DEX_GBI_2
-
 #ifdef F3DEX_GBI_2
 #ifndef F3DEX_GBI
 #define F3DEX_GBI
@@ -115,6 +113,7 @@
 #define G_TRI2 (G_IMMFIRST - 14)
 #define G_BRANCH_Z (G_IMMFIRST - 15)
 #define G_LOAD_UCODE (G_IMMFIRST - 16)
+#define G_QUAD (G_IMMFIRST - 10)
 #else
 #define G_RDPHALF_CONT (G_IMMFIRST - 13)
 #endif
@@ -369,6 +368,7 @@
  * G_EXTRAGEOMETRY flags: set extra custom geometry modes
  */
 #define G_EX_INVERT_CULLING 0x00000001
+#define G_EX_ALWAYS_EXECUTE_BRANCH 0x00000002
 
 /* Need these defined for Sprite Microcode */
 #ifdef _LANGUAGE_ASSEMBLY
@@ -1687,6 +1687,13 @@ typedef union Gfx {
  */
 
 /*
+ * OTR macros
+ */
+
+#define gsSP1TriangleOTR(v0, v1, v2, flag) \
+    { _SHIFTL(G_TRI1_OTR, 24, 8) | __gsSP1Triangle_w1f(v0, v1, v2, flag), 0 }
+
+/*
  * DMA macros
  */
 #define gDma0p(pkt, c, s, l)                                      \
@@ -1764,10 +1771,10 @@ typedef union Gfx {
  *        | |seg|          address            |
  *        +-+---+-----------------------------+
  */
-#define gSPVertex(pkt, v, n, v0) gDma1p((pkt), G_VTX, (v), ((n) << 10) | (sizeof(Vtx) * (n)-1), (v0)*2)
+#define __gSPVertex(pkt, v, n, v0) gDma1p((pkt), G_VTX, (v), ((n) << 10) | (sizeof(Vtx) * (n)-1), (v0)*2)
 #define gsSPVertex(v, n, v0) gsDma1p(G_VTX, (v), ((n) << 10) | (sizeof(Vtx) * (n)-1), (v0)*2)
 #else
-#define gSPVertex(pkt, v, n, v0) gDma1p(pkt, G_VTX, v, sizeof(Vtx) * (n), ((n)-1) << 4 | (v0))
+#define __gSPVertex(pkt, v, n, v0) gDma1p(pkt, G_VTX, v, sizeof(Vtx) * (n), ((n)-1) << 4 | (v0))
 #define gsSPVertex(v, n, v0) gsDma1p(G_VTX, v, sizeof(Vtx) * (n), ((n)-1) << 4 | (v0))
 #endif
 
@@ -1929,9 +1936,6 @@ typedef union Gfx {
     })
 #define gsSP1Triangle(v0, v1, v2, flag) \
     { _SHIFTL(G_TRI1, 24, 8) | __gsSP1Triangle_w1f(v0, v1, v2, flag), 0 }
-
-#define gsSP1TriangleOTR(v0, v1, v2, flag) \
-    { _SHIFTL(G_TRI1_OTR, 24, 8) | __gsSP1Triangle_w1f(v0, v1, v2, flag), 0 }
 
 /***
  ***  Line
@@ -2878,9 +2882,9 @@ typedef union Gfx {
 #define gDPSetMaskImage(pkt, i) gDPSetDepthImage(pkt, i)
 #define gsDPSetMaskImage(i) gsDPSetDepthImage(i)
 
-#define __gDPSetTextureImage(pkt, f, s, w, i) gSetImage(pkt, G_SETTIMG, f, s, w, i)
+#define gDPSetTextureImage(pkt, f, s, w, i) gSetImage(pkt, G_SETTIMG, f, s, w, i)
 #define gsDPSetTextureImage(f, s, w, i) gsSetImage(G_SETTIMG, f, s, w, i)
-#define __gDPSetTextureImageFB(pkt, f, s, w, i) gSetImage(pkt, G_SETTIMG_FB, f, s, w, i)
+#define gDPSetTextureImageFB(pkt, f, s, w, i) gSetImage(pkt, G_SETTIMG_FB, f, s, w, i)
 
 /*
  * RDP macros

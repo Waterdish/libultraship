@@ -1391,7 +1391,8 @@ static void gfx_sp_tri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx, bo
         }
 
         // If inverted culling is requested, negate the cross
-        if ((g_rsp.extra_geometry_mode & G_EX_INVERT_CULLING) == 1) {
+        if (ucode_handler_index == UcodeHandlers::ucode_f3dex2 &&
+            (g_rsp.extra_geometry_mode & G_EX_INVERT_CULLING) == 1) {
             cross = -cross;
         }
 
@@ -1850,6 +1851,10 @@ static void gfx_sp_movemem_f3d(uint8_t index, uint8_t offset, const void* data) 
     switch (index) {
         case F3DEX_G_MV_VIEWPORT:
             gfx_calc_and_set_viewport((const F3DVp_t*)data);
+            break;
+        case F3DEX_G_MV_LOOKATY:
+        case F3DEX_G_MV_LOOKATX:
+            memcpy(g_rsp.lookat + (index - F3DEX_G_MV_LOOKATY) / 2, data, sizeof(F3DLight_t));
             break;
         case F3DEX_G_MV_L0:
         case F3DEX_G_MV_L1:
@@ -2863,7 +2868,7 @@ bool gfx_vtx_handler_f3dex2(F3DGfx** cmd0) {
 
 bool gfx_vtx_handler_f3dex(F3DGfx** cmd0) {
     F3DGfx* cmd = *cmd0;
-    gfx_sp_vertex(C0(10, 6), C0(16, 8) / 2, (const F3DVtx*)seg_addr(cmd->words.w1));
+    gfx_sp_vertex(C0(10, 6), C0(17, 7), (const F3DVtx*)seg_addr(cmd->words.w1));
 
     return false;
 }
@@ -3030,7 +3035,7 @@ bool gfx_branch_z_otr_handler_f3dex2(F3DGfx** cmd0) {
 
     (*cmd0)++;
 
-    if (g_rsp.loaded_vertices[vbidx].z <= zval) {
+    if (g_rsp.loaded_vertices[vbidx].z <= zval || (g_rsp.extra_geometry_mode & G_EX_ALWAYS_EXECUTE_BRANCH) != 0) {
         uint64_t hash = ((uint64_t)(*cmd0)->words.w0 << 32) + (*cmd0)->words.w1;
 
         F3DGfx* gfx = (F3DGfx*)ResourceGetDataByCrc(hash);
@@ -3098,7 +3103,7 @@ bool gfx_tri1_handler_f3dex2(F3DGfx** cmd0) {
 bool gfx_tri1_handler_f3dex(F3DGfx** cmd0) {
     F3DGfx* cmd = *cmd0;
 
-    gfx_sp_tri1(C1(16, 8) / 2, C1(8, 8) / 2, C1(0, 8) / 2, false);
+    gfx_sp_tri1(C1(17, 7), C1(9, 7), C1(1, 7), false);
 
     return false;
 }
@@ -3115,8 +3120,8 @@ bool gfx_tri1_handler_f3d(F3DGfx** cmd0) {
 bool gfx_tri2_handler_f3dex(F3DGfx** cmd0) {
     F3DGfx* cmd = *cmd0;
 
-    gfx_sp_tri1(C0(16, 8) / 2, C0(8, 8) / 2, C0(0, 8) / 2, false);
-    gfx_sp_tri1(C1(16, 8) / 2, C1(8, 8) / 2, C1(0, 8) / 2, false);
+    gfx_sp_tri1(C0(17, 7), C0(9, 7), C0(1, 7), false);
+    gfx_sp_tri1(C1(17, 7), C1(9, 7), C1(1, 7), false);
     return false;
 }
 
@@ -3129,7 +3134,11 @@ bool gfx_quad_handler_f3dex2(F3DGfx** cmd0) {
 }
 
 bool gfx_quad_handler_f3dex(F3DGfx** cmd0) {
-    // TODO implement this command...
+    F3DGfx* cmd = *cmd0;
+    gfx_sp_tri1(C0(16, 8) / 2, C0(8, 8) / 2, C0(0, 8) / 2, false);
+    gfx_sp_tri1(C0(8, 8) / 2, C0(0, 8) / 2, C0(24, 0) / 2, false);
+    gfx_sp_tri1(C1(0, 8) / 2, C1(24, 8) / 2, C1(16, 8) / 2, false);
+    gfx_sp_tri1(C1(24, 8) / 2, C1(16, 8) / 2, C1(8, 8) / 2, false);
     return false;
 }
 
@@ -3216,6 +3225,11 @@ bool gfx_set_timg_otr_hash_handler_custom(F3DGfx** cmd0) {
     const char* fileName = ResourceGetNameByCrc(hash);
     uint32_t texFlags = 0;
     RawTexMetadata rawTexMetadata = {};
+
+    if (fileName == nullptr) {
+        (*cmd0)++;
+        return false;
+    }
 
     std::shared_ptr<LUS::Texture> texture = std::static_pointer_cast<LUS::Texture>(
         Ship::Context::GetInstance()->GetResourceManager()->LoadResourceProcess(ResourceGetNameByCrc(hash)));
@@ -3635,7 +3649,31 @@ bool gfx_spnoop_command_handler_f3dex2(F3DGfx** cmd0) {
     return false;
 }
 
-const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHandlerFunc>> rdpHandlers = {
+class UcodeHandler {
+  public:
+    inline constexpr UcodeHandler(
+        std::initializer_list<std::pair<int8_t, std::pair<const char*, GfxOpcodeHandlerFunc>>> initializer) {
+        std::fill(std::begin(mHandlers), std::end(mHandlers),
+                  std::pair<const char*, GfxOpcodeHandlerFunc>(nullptr, nullptr));
+
+        for (const auto& [opcode, handler] : initializer) {
+            mHandlers[static_cast<uint8_t>(opcode)] = handler;
+        }
+    }
+
+    inline bool contains(int8_t opcode) const {
+        return mHandlers[static_cast<uint8_t>(opcode)].first != nullptr;
+    }
+
+    inline std::pair<const char*, GfxOpcodeHandlerFunc> at(int8_t opcode) const {
+        return mHandlers[static_cast<uint8_t>(opcode)];
+    }
+
+  private:
+    std::pair<const char*, GfxOpcodeHandlerFunc> mHandlers[std::numeric_limits<uint8_t>::max() + 1];
+};
+
+static constexpr UcodeHandler rdpHandlers = {
     { RDP_G_TEXRECT, { "G_TEXRECT", gfx_tex_rect_and_flip_handler_rdp } },           // G_TEXRECT (-28)
     { RDP_G_TEXRECTFLIP, { "G_TEXRECTFLIP", gfx_tex_rect_and_flip_handler_rdp } },   // G_TEXRECTFLIP (-27)
     { RDP_G_RDPLOADSYNC, { "G_RDPLOADSYNC", gfx_stubbed_command_handler } },         // G_RDPLOADSYNC (-26)
@@ -3662,7 +3700,7 @@ const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHa
     { RDP_G_SETCIMG, { "G_SETCIMG", gfx_set_c_img_handler_rdp } },                   // G_SETCIMG (-1)
 };
 
-const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHandlerFunc>> otrHandlers = {
+static constexpr UcodeHandler otrHandlers = {
     { OTR_G_SETTIMG_OTR_HASH,
       { "G_SETTIMG_OTR_HASH", gfx_set_timg_otr_hash_handler_custom } },       // G_SETTIMG_OTR_HASH (0x20)
     { OTR_G_SETFB, { "G_SETFB", gfx_set_fb_handler_custom } },                // G_SETFB (0x21)
@@ -3692,7 +3730,7 @@ const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHa
     { OTR_G_SETINTENSITY, { "G_SETINTENSITY", gfx_set_intensity_handler_custom } }, // G_SETINTENSITY (0x40)
 };
 
-const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHandlerFunc>> f3dex2Handlers = {
+static constexpr UcodeHandler f3dex2Handlers = {
     { F3DEX2_G_NOOP, { "G_NOOP", gfx_noop_handler_f3dex2 } },
     { F3DEX2_G_SPNOOP, { "G_SPNOOP", gfx_noop_handler_f3dex2 } },
     { F3DEX2_G_CULLDL, { "G_CULLDL", gfx_cull_dl_handler_f3dex2 } },
@@ -3714,7 +3752,7 @@ const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHa
     { OTR_G_MTX_OTR, { "G_MTX_OTR", gfx_mtx_otr_handler_custom_f3dex2 } },
 };
 
-const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHandlerFunc>> f3dexHandlers = {
+static constexpr UcodeHandler f3dexHandlers = {
     { F3DEX_G_NOOP, { "G_NOOP", gfx_noop_handler_f3dex2 } },
     { F3DEX_G_CULLDL, { "G_CULLDL", gfx_cull_dl_handler_f3dex2 } },
     { F3DEX_G_MTX, { "G_MTX", gfx_mtx_handler_f3d } },
@@ -3734,10 +3772,11 @@ const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHa
     { F3DEX_G_TRI2, { "G_TRI2", gfx_tri2_handler_f3dex } },
     { F3DEX_G_SPNOOP, { "G_SPNOOP", gfx_spnoop_command_handler_f3dex2 } },
     { F3DEX_G_RDPHALF_1, { "G_RDPHALF_1", gfx_stubbed_command_handler } },
-    { OTR_G_MTX_OTR2, { "G_MTX_OTR2", gfx_mtx_otr_handler_custom_f3d } } // G_MTX_OTR2 (0x29) Is this the right code?
+    { OTR_G_MTX_OTR2, { "G_MTX_OTR2", gfx_mtx_otr_handler_custom_f3d } }, // G_MTX_OTR2 (0x29) Is this the right code?
+    { F3DEX_G_QUAD, { "G_QUAD", gfx_quad_handler_f3dex } }
 };
 
-const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHandlerFunc>> f3dHandlers = {
+static constexpr UcodeHandler f3dHandlers = {
     { F3DEX_G_NOOP, { "G_NOOP", gfx_noop_handler_f3dex2 } },
     { F3DEX_G_CULLDL, { "G_CULLDL", gfx_cull_dl_handler_f3dex2 } },
     { F3DEX_G_MTX, { "G_MTX", gfx_mtx_handler_f3d } },
@@ -3761,7 +3800,7 @@ const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHa
 
 // LUSTODO: These S2DEX commands have different opcode numbers on F3DEX2 vs other ucodes. More research needs to be done
 // to see if the implementations are different.
-const static std::unordered_map<int8_t, const std::pair<const char*, GfxOpcodeHandlerFunc>> s2dexHandlers = {
+static constexpr UcodeHandler s2dexHandlers = {
     { F3DEX2_G_BG_COPY, { "G_BG_COPY", gfx_bg_copy_handler_s2dex } },
     { F3DEX2_G_BG_1CYC, { "G_BG_1CYC", gfx_bg_1cyc_handler_s2dex } },
     { F3DEX2_G_OBJ_RENDERMODE, { "G_OBJ_RENDERMODE", gfx_stubbed_command_handler } },
@@ -3886,6 +3925,7 @@ void gfx_init(struct GfxWindowManagerAPI* wapi, struct GfxRenderingAPI* rapi, co
 
 void gfx_destroy(void) {
     // TODO: should also destroy rapi, and any other resources acquired in fast3d
+    free(tex_upload_buffer);
     gfx_wapi->destroy();
 
     // Texture cache and loaded textures store references to Resources which need to be unreferenced.
@@ -4001,7 +4041,7 @@ void gfx_run(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtx_replacemen
     while (!g_exec_stack.cmd_stack.empty()) {
         auto cmd = g_exec_stack.cmd_stack.top();
 
-        if (GfxDebuggerIsDebugging()) {
+        if (dbg->IsDebugging()) {
             g_exec_stack.gfx_path.push_back(cmd);
             if (dbg->HasBreakPoint(g_exec_stack.gfx_path)) {
                 break;
@@ -4044,6 +4084,10 @@ void gfx_end_frame(void) {
         gfx_rapi->finish_render();
         gfx_wapi->swap_buffers_end();
     }
+}
+
+void gfx_set_target_ucode(UcodeHandlers ucode) {
+    ucode_handler_index = ucode;
 }
 
 void gfx_set_target_fps(int fps) {

@@ -560,8 +560,9 @@ static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
 
         MTL::DepthStencilDescriptor* depth_descriptor = MTL::DepthStencilDescriptor::alloc()->init();
         depth_descriptor->setDepthWriteEnabled(mctx.depth_mask);
-        depth_descriptor->setDepthCompareFunction(mctx.depth_test ? MTL::CompareFunctionLessEqual
-                                                                  : MTL::CompareFunctionAlways);
+        depth_descriptor->setDepthCompareFunction(
+            mctx.depth_test ? (mctx.zmode_decal ? MTL::CompareFunctionLessEqual : MTL::CompareFunctionLess)
+                            : MTL::CompareFunctionAlways);
 
         MTL::DepthStencilState* depth_stencil_state = mctx.device->newDepthStencilState(depth_descriptor);
         current_framebuffer.command_encoder->setDepthStencilState(depth_stencil_state);
@@ -748,11 +749,9 @@ static void gfx_metal_setup_screen_framebuffer(uint32_t width, uint32_t height) 
     tex.texture = mctx.current_drawable->texture();
 
     MTL::RenderPassDescriptor* render_pass_descriptor = MTL::RenderPassDescriptor::renderPassDescriptor();
-    MTL::ClearColor clear_color = MTL::ClearColor::Make(0, 0, 0, 1);
     render_pass_descriptor->colorAttachments()->object(0)->setTexture(tex.texture);
-    render_pass_descriptor->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionClear);
+    render_pass_descriptor->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionLoad);
     render_pass_descriptor->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionStore);
-    render_pass_descriptor->colorAttachments()->object(0)->setClearColor(clear_color);
 
     tex.width = width;
     tex.height = height;
@@ -851,20 +850,17 @@ static void gfx_metal_update_framebuffer_parameters(int fb_id, uint32_t width, u
 
             bool fb_msaa_enabled = (msaa_level > 1);
             bool game_msaa_enabled = CVarGetInteger("gMSAAValue", 1) > 1;
-            MTL::ClearColor clear_color = MTL::ClearColor::Make(0.0, 0.0, 0.0, 1.0);
 
             if (fb_msaa_enabled) {
                 render_pass_descriptor->colorAttachments()->object(0)->setTexture(tex.msaaTexture);
                 render_pass_descriptor->colorAttachments()->object(0)->setResolveTexture(tex.texture);
-                render_pass_descriptor->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionClear);
+                render_pass_descriptor->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionLoad);
                 render_pass_descriptor->colorAttachments()->object(0)->setStoreAction(
                     MTL::StoreActionStoreAndMultisampleResolve);
-                render_pass_descriptor->colorAttachments()->object(0)->setClearColor(clear_color);
             } else {
                 render_pass_descriptor->colorAttachments()->object(0)->setTexture(tex.texture);
-                render_pass_descriptor->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionClear);
+                render_pass_descriptor->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionLoad);
                 render_pass_descriptor->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionStore);
-                render_pass_descriptor->colorAttachments()->object(0)->setClearColor(clear_color);
             }
 
             if (fb.render_pass_descriptor != nullptr)

@@ -688,7 +688,9 @@ static void gfx_d3d11_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
 
         depth_stencil_desc.DepthEnable = d3d.depth_test || d3d.depth_mask;
         depth_stencil_desc.DepthWriteMask = d3d.depth_mask ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
-        depth_stencil_desc.DepthFunc = d3d.depth_test ? D3D11_COMPARISON_LESS_EQUAL : D3D11_COMPARISON_ALWAYS;
+        depth_stencil_desc.DepthFunc = d3d.depth_test
+                                           ? (d3d.zmode_decal ? D3D11_COMPARISON_LESS_EQUAL : D3D11_COMPARISON_LESS)
+                                           : D3D11_COMPARISON_ALWAYS;
         depth_stencil_desc.StencilEnable = false;
 
         ThrowIfFailed(d3d.device->CreateDepthStencilState(&depth_stencil_desc, d3d.depth_stencil_state.GetAddressOf()));
@@ -945,8 +947,6 @@ void gfx_d3d11_start_draw_to_framebuffer(int fb_id, float noise_scale) {
 
 void gfx_d3d11_clear_framebuffer(void) {
     Framebuffer& fb = d3d.framebuffers[d3d.current_framebuffer];
-    const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    d3d.context->ClearRenderTargetView(fb.render_target_view.Get(), clearColor);
     if (fb.has_depth_buffer) {
         d3d.context->ClearDepthStencilView(fb.depth_stencil_view.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
     }

@@ -6,7 +6,7 @@ find_package(OpenGL QUIET)
 FetchContent_Declare(
     ImGui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG v1.90.7-docking
+    GIT_TAG v1.90.6-docking
 )
 FetchContent_MakeAvailable(ImGui)
 list(APPEND ADDITIONAL_LIB_INCLUDES ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
