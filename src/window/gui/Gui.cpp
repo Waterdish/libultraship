@@ -53,11 +53,8 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARA
 #endif
 
 namespace Ship {
-#ifdef __ANDROID__
-    #define TOGGLE_BTN ImGuiKey_AppBack
-#else
-    #define TOGGLE_BTN ImGuiKey_F1
-#endif
+
+#define TOGGLE_BTN ImGuiKey_F1
 #define TOGGLE_PAD_BTN ImGuiKey_GamepadBack
 
 Gui::Gui(std::vector<std::shared_ptr<GuiWindow>> guiWindows) : mNeedsConsoleVariableSave(false) {
