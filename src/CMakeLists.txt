@@ -386,6 +386,10 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(libultraship PRIVATE ${PULSEAUDIO_LIBRARY})
 endif()
 
+if (CMAKE_SYSTEM_NAME STREQUAL "Android")
+    target_link_libraries(libultraship PRIVATE log)
+endif()
+
 if (USE_OPENGLES)
     find_library(OPENGLES_LIBRARY GLESv3)
     target_link_libraries(libultraship PRIVATE GLESv3)
@@ -416,6 +420,7 @@ if (NOT CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
         $<$<CONFIG:Debug>:SPDLOG_ACTIVE_LEVEL=0>
         $<$<NOT:$<CONFIG:Debug>>:SPDLOG_ACTIVE_LEVEL=1>
         $<$<BOOL:${USE_OPENGLES}>:USE_OPENGLES>
+        "-DANDROID_APPNAME=\"${ANDROID_APPNAME}\""
     )
 else ()
     target_compile_definitions(libultraship PRIVATE
