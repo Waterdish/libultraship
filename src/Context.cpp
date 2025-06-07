@@ -4,6 +4,11 @@
 #include <spdlog/async.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#ifdef __ANDROID__
+#include <jni.h>
+#include <SDL2/SDL.h>
+#include "spdlog/sinks/android_sink.h"
+#endif
 #include "install_config.h"
 #include "graphic/Fast3D/debug/GfxDebugger.h"
 #include "graphic/Fast3D/Fast3dWindow.h"
@@ -143,6 +148,11 @@ void Context::InitLogging() {
         fileSink->set_level(spdlog::level::debug);
 #endif
         sinks.push_back(fileSink);
+
+#ifdef __ANDROID__
+        auto logcatSink = std::make_shared<spdlog::sinks::android_sink_mt>(GetName(), ANDROID_APPNAME);
+        sinks.push_back(logcatSink);
+#endif
 
         mLogger = std::make_shared<spdlog::async_logger>(GetName(), sinks.begin(), sinks.end(), spdlog::thread_pool(),
                                                          spdlog::async_overflow_policy::block);
@@ -316,10 +326,7 @@ std::string Context::GetShortName() {
 
 std::string Context::GetAppBundlePath() {
 #if defined(__ANDROID__)
-    const char* externaldir = SDL_AndroidGetExternalStoragePath();
-    if (externaldir != NULL) {
-        return externaldir;
-    }
+    return GetAppDirectoryPath();
 #endif
 
 #ifdef __IOS__
@@ -357,10 +364,19 @@ std::string Context::GetAppBundlePath() {
 
 std::string Context::GetAppDirectoryPath(std::string appName) {
 #if defined(__ANDROID__)
-    const char* externaldir = "/storage/emulated/0/Android/data/com.dishii.mm/files"; //SDL_AndroidGetExternalStoragePath();
-    if (externaldir != NULL) {
-        return externaldir;
-    }
+    JNIEnv* javaEnv = (JNIEnv*)SDL_AndroidGetJNIEnv();
+    jobject javaObject = (jobject)SDL_AndroidGetActivity();
+
+    jclass javaClass = javaEnv->GetObjectClass(javaObject);
+    jmethodID getExternalAssetsPathMethod = javaEnv->GetMethodID(javaClass, "getExternalAssetsPath", "()Ljava/lang/String;");
+    jstring externalAssetsPath_jstr = static_cast<jstring>(javaEnv->CallObjectMethod(javaObject, getExternalAssetsPathMethod));
+
+    const char *externalAssetsPath_cstr = javaEnv->GetStringUTFChars(externalAssetsPath_jstr, nullptr);
+    std::string externalAssetsPath(externalAssetsPath_cstr);
+
+    javaEnv->ReleaseStringUTFChars(externalAssetsPath_jstr, externalAssetsPath_cstr);
+
+    return externalAssetsPath;
 #endif
 
 #ifdef __IOS__

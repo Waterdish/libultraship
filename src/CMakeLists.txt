@@ -194,6 +194,10 @@ target_link_libraries(libultraship PUBLIC tinyxml2::tinyxml2)
 find_package(spdlog REQUIRED)
 target_link_libraries(libultraship PUBLIC spdlog::spdlog)
 
+if (CMAKE_SYSTEM_NAME STREQUAL "Android")
+    target_link_libraries(libultraship PRIVATE log)
+endif()
+
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
@@ -276,6 +280,7 @@ else()
         $<$<NOT:$<CONFIG:Debug>>:SPDLOG_ACTIVE_LEVEL=1>
         $<$<BOOL:${USE_OPENGLES}>:USE_OPENGLES>
         $<$<BOOL:${GFX_DEBUG_DISASSEMBLER}>:GFX_DEBUG_DISASSEMBLER>
+        "-DANDROID_APPNAME=\"${ANDROID_APPNAME}\""
     )
 endif()
 
